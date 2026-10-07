@@ -4,7 +4,13 @@ A small, runnable reference pipeline for makeup / beauty product data, built to 
 **when a Kafka consumer falls behind, is it the stream or the sink?**
 
 Everything is Python (`confluent-kafka`, `psycopg`, `matplotlib`). There is no Java code to write or
-read. The Kafka-compatible broker is just infrastructure.
+read. The Kafka-compatible broker (Redpanda in the Kubernetes setup) is just infrastructure.
+
+Two layers of experiments:
+
+1. **Single machine** ([Results](#results)): same consumer, different sinks. Is it the stream or the sink?
+2. **Kubernetes** ([Kubernetes experiments](#kubernetes-experiments)): pod failures, KEDA autoscaling on Kafka lag,
+   and a resource-limited Postgres pod.
 
 It backs the talk *"Blush, Batch, and Backpressure: Building Data Pipelines for Beauty Product
 Intelligence"* with numbers anyone can reproduce.
@@ -72,7 +78,7 @@ consumer kept up with the no-op sink (peak lag 59 events, p99 end-to-end latency
 
 ### Honest limitations
 
-- Postgres is on the same machine as the consumer, so there is no network round trip. Against a remote database
+- In the single-machine results, Postgres is on the same machine as the consumer, so there is no network round trip. Against a remote database
   every per-event commit gets slower, so the naive sink would look worse, not better.
 - **The batch refresh job did not create a visible lag spike.** At 5,000 products it rewrites everything in about
   0.26 s, which is too small to contend with the stream. Raise `NUM_PRODUCTS` (and re-seed) to make it heavier. Do
@@ -92,6 +98,99 @@ consumer blocked it for about 2 s per call whenever a backlog existed. Moving th
 background consumer (see the docstring in `beautypipe/consumer.py`) fixed it, and the drain time dropped from
 66 s to 10 s. **Check that your metrics are not part of your latency.**
 
+## Kubernetes experiments
+
+The same consumer runs as a Deployment on a kind cluster, with Redpanda and Postgres as pods, the catalog seed as a
+Kubernetes Job (and a suspended refresh CronJob), and [KEDA](https://keda.sh) (a CNCF project) scaling consumers
+on Kafka lag. The producer and all measurements run outside the consumers: the backlog is
+`events produced - events stored` (read from the database), data staleness is the age of the newest stored event,
+and Postgres CPU use and throttling come from its container cgroup. Raw samples are in [`results-k8s/`](results-k8s/)
+and the full tables in [`results-k8s/summary.md`](results-k8s/summary.md).
+
+### 1. What happens when a consumer pod dies?
+
+Batched sink, 2,000 events/s, the consumer pod is killed at t=15 s.
+
+![pod failure](results-k8s/pod-failure.png)
+
+| Failure | Peak backlog | Max data staleness | Back to normal after | Events sent / stored | Rollup mismatches |
+|---|---:|---:|---:|---:|---:|
+| Graceful deletion (deploy, node drain) | 541 | 1.0 s | 2 s | 89,994 / 89,994 | 0 |
+| Hard crash (SIGKILL of the container) | 20,083 | 10.0 s | 11 s | 89,996 / 89,996 | 0 |
+
+- No events were lost or double counted in either case. Redelivered events are absorbed by the idempotent sink.
+- A crash is far more expensive than a graceful stop: the consumer never leaves the group, so Kafka waits for
+  `session.timeout.ms` (10 s here) before reassigning partitions. The recovery time matches that setting.
+  Static group membership or a shorter session timeout trade this off differently.
+
+### 2. Scale out the consumers, or fix the sink?
+
+3,000 events/s for 60 s, 8 partitions. KEDA scales the Deployment from 1 to 8 pods when lag exceeds 2,000 per pod.
+
+![scaling](results-k8s/scaling-vs-sink.png)
+
+| Scenario | Peak backlog | Drain after producer stops | Max pods | Pod-seconds | Peak Postgres connections |
+|---|---:|---:|---:|---:|---:|
+| Per-event sink, 1 pod | 134,322 | 164 s | 1 | 226 | 1 |
+| Per-event sink, KEDA autoscaling | 33,813 | 7 s | 8 | 398 | 8 |
+| Batched sink, 1 pod | 548 | 2 s | 1 | 62 | 1 |
+
+- Autoscaling on lag **works**. It fixed the symptom, but it needed about 28 s to reach 8 pods (polling interval,
+  scale-up steps, pod start), so the backlog still peaked at about 34,000 events.
+- Fixing the sink is far cheaper: the batched single pod used about 6x fewer pod-seconds and 8x fewer database
+  connections than the autoscaled per-event consumers, and never built a backlog.
+
+### 3. What if the database is the constrained resource?
+
+4,000 events/s for 45 s, batched sink. Postgres runs as a pod with a CPU limit.
+
+![postgres limits](results-k8s/postgres-limits.png)
+
+| Scenario | Peak backlog | Drain after producer stops | Max pods | Pod-seconds | Postgres CPU-throttled |
+|---|---:|---:|---:|---:|---:|
+| Postgres 2 CPU, 1 pod | 551 | 2 s | 1 | 48 | 0 s |
+| Postgres 0.05 CPU, 1 pod | 96,498 | 56 s | 1 | 102 | 60 s |
+| Postgres 0.05 CPU, KEDA autoscaling | 94,998 | 55 s | 5 | 370 | 111 s |
+
+- With a starved database the lag is real, but it is not a Kafka or consumer problem. KEDA saw the lag and added
+  consumers (5 pods, 3.6x the pod-seconds) with **no improvement** (55 s vs 56 s drain), and Postgres was throttled for
+  almost twice as long. Scaling the consumers only moved more load onto the bottleneck.
+- The batched sink is very cheap for Postgres: at 2 CPUs it used roughly 0.1 cores or less for 4,000 events/s.
+
+### Honest limitations and things that went wrong
+
+- Everything runs on one 4 vCPU VM in a single-node kind cluster, so the producer, Redpanda, Postgres and consumers
+  share CPU. One run per scenario. The order-of-magnitude differences matter; small ones are noise.
+- "Constrained storage" here means a **CPU limit on the Postgres pod**. The data directory is an `emptyDir`, so disk IOPS
+  are not limited. The 0.05 CPU limit is deliberately extreme. A first attempt with 0.25 CPU did not bind at all
+  (the batched sink only needs about 0.1 cores at this rate), so I lowered it.
+- Pod-seconds are estimated from 2-second samples of ready pods.
+- Redpanda (Kafka protocol) is used as the broker. [Strimzi](https://strimzi.io) (CNCF) would be the usual operator
+  for Apache Kafka on Kubernetes and is a natural swap; the consumer code would not change.
+- Pitfalls hit while building this, which are good talk material:
+  - `kubectl delete pod --force` still sends SIGTERM, and a consumer that handles it leaves the group cleanly, so the
+    first "crash" test showed no failure at all. A real crash needed SIGKILL via the container runtime.
+  - KEDA runs in its own namespace. With the broker advertising the short name `redpanda`, KEDA could not reach it,
+    **so it never scaled and silently looked like "autoscaling does not help"**. The broker must advertise a name that
+    resolves from every namespace (`redpanda.default.svc.cluster.local`).
+  - Some minimal kernels lack the netfilter `statistic` module that kube-proxy needs for Services with more than one
+    backend, which breaks every Service. `scripts/k8s-up.sh` runs CoreDNS with one replica to avoid it.
+
+### Run the Kubernetes experiments
+
+Requirements: Docker, [kind](https://kind.sigs.k8s.io), kubectl, helm.
+
+```bash
+scripts/k8s-up.sh                          # kind cluster, Redpanda, Postgres, KEDA, catalog seed Job
+python -m beautypipe.k8s_bench --list      # the experiments
+python -m beautypipe.k8s_bench             # all of them, about 25 minutes -> results-k8s/
+python -m beautypipe.k8s_report            # charts + results-k8s/summary.md
+kind delete cluster --name beautypipe      # tear down
+```
+
+The hard-crash experiment kills the container with `docker exec <kind node> crictl stop`, so the user running the
+benchmark needs Docker access (the harness calls `sudo -n docker`).
+
 ## Run it yourself
 
 Requirements: Python 3.10+, and a Kafka-compatible broker and Postgres. With Docker:
@@ -99,7 +198,7 @@ Requirements: Python 3.10+, and a Kafka-compatible broker and Postgres. With Doc
 ```bash
 docker compose up -d                       # Redpanda on :9092, Postgres on :5432
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev]"                  # ".[report]" if you only need the charts
 
 pytest                                     # unit + idempotency tests (needs Postgres)
 
@@ -135,6 +234,10 @@ Settings (environment variables): `KAFKA_BOOTSTRAP` (default `localhost:9092`), 
 | `beautypipe/batchjob.py` | Catalog seeding and the periodic batch refresh |
 | `beautypipe/bench.py` | Runs scenarios, validates, runs the replay check |
 | `beautypipe/report.py` | Charts and markdown summary |
+| `beautypipe/k8s_bench.py`, `k8s_report.py` | Kubernetes experiments and their charts |
+| `k8s/` | Manifests: Redpanda, Postgres, consumer Deployment, batch Job/CronJob, KEDA ScaledObject, kind config |
+| `scripts/k8s-up.sh` | Builds and loads images, creates the cluster, installs KEDA |
+| `Dockerfile` | Image used by the consumer, producer and batch pods |
 | `tests/` | Normalization, event determinism and sink idempotency tests |
 
 ## Mapping to the talk outline
@@ -146,6 +249,7 @@ Settings (environment variables): `KAFKA_BOOTSTRAP` (default `localhost:9092`), 
 | Diagnosis: lag vs throughput vs sink latency | `results/overview.png`, `consumer.py` metrics |
 | Idempotency and replay | `sinks.py`, `bench.py` replay check, `tests/test_events_and_sinks.py` |
 | Storage and bottlenecks | `sinks.py` naive vs batched, results table |
+| Kubernetes: scaling, failure, backpressure | `k8s/`, `k8s_bench.py`, [Kubernetes experiments](#kubernetes-experiments) |
 
 ## License
 

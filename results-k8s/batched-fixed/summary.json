@@ -1,0 +1,24 @@
+{
+  "experiment": "batched-fixed",
+  "kill_at": null,
+  "kill_mode": null,
+  "question": "Batched sink, 1 consumer pod, 3,000 events/s",
+  "sink": "pg-batched",
+  "replicas": 1,
+  "keda": false,
+  "pg_cpu": "2",
+  "rate": 3000,
+  "duration": 60,
+  "topic": "beauty.events.batched-fixed.1791338530",
+  "sent": 179984,
+  "t0": 1791338542.0655885,
+  "produce_end": 1791338602.068549,
+  "drain_end": 1791338604.0688071,
+  "drained": true,
+  "killed": null,
+  "validation": {
+    "events": 179984,
+    "stats_total": 179984,
+    "mismatched_products": 0
+  }
+}

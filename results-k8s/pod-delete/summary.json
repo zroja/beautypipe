@@ -1,0 +1,27 @@
+{
+  "experiment": "pod-delete",
+  "kill_at": 15,
+  "kill_mode": "delete",
+  "question": "Graceful pod deletion (deploy or node drain): any loss or double counting?",
+  "sink": "pg-batched",
+  "replicas": 1,
+  "keda": false,
+  "pg_cpu": "2",
+  "rate": 2000,
+  "duration": 45,
+  "topic": "beauty.events.pod-delete.1791337942",
+  "sent": 89994,
+  "t0": 1791337954.897634,
+  "produce_end": 1791337999.9033992,
+  "drain_end": 1791338001.9036775,
+  "drained": true,
+  "killed": {
+    "pod": "consumer-5b48b459d9-5xvdr",
+    "at": 1791337969.940091
+  },
+  "validation": {
+    "events": 89994,
+    "stats_total": 89994,
+    "mismatched_products": 0
+  }
+}
