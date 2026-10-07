@@ -1,0 +1,18 @@
+{
+  "scenario": "pg-naive-1",
+  "sink": "pg-naive",
+  "consumers": 1,
+  "batchjob": false,
+  "rate": 1500,
+  "duration": 30.0,
+  "sent": 44999,
+  "produce_start": 1791332891.7048903,
+  "produce_end": 1791332921.7111783,
+  "drain_end": 1791332932.7170243,
+  "drained": true,
+  "validation": {
+    "events": 44999,
+    "stats_total": 44999,
+    "mismatched_products": 0
+  }
+}

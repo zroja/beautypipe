@@ -1,0 +1,18 @@
+{
+  "scenario": "pg-batched-1",
+  "sink": "pg-batched",
+  "consumers": 1,
+  "batchjob": false,
+  "rate": 8000,
+  "duration": 20.0,
+  "sent": 159973,
+  "produce_start": 1791333174.0591888,
+  "produce_end": 1791333194.063519,
+  "drain_end": 1791333195.0642722,
+  "drained": true,
+  "validation": {
+    "events": 159973,
+    "stats_total": 159973,
+    "mismatched_products": 0
+  }
+}

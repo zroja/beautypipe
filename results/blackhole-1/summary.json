@@ -1,0 +1,13 @@
+{
+  "scenario": "blackhole-1",
+  "sink": "blackhole",
+  "consumers": 1,
+  "batchjob": false,
+  "rate": 1500,
+  "duration": 30.0,
+  "sent": 44994,
+  "produce_start": 1791332852.2444727,
+  "produce_end": 1791332882.247368,
+  "drain_end": 1791332883.248333,
+  "drained": true
+}

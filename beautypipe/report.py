@@ -48,11 +48,12 @@ def _percentile(values, q):
 def load(scenario_dir: Path) -> dict:
     summary = json.loads((scenario_dir / "summary.json").read_text())
     t0 = summary["produce_start"]
-    processed, lag, p99, sink_ms, calls = (defaultdict(float) for _ in range(5))
+    processed, rate, lag, p99, sink_ms, calls = (defaultdict(float) for _ in range(6))
     for f in sorted(scenario_dir.glob("consumer-*.jsonl")):
         for row in _lines(f):
             sec = int(row["ts"] - t0)
             processed[sec] += row["processed"]
+            rate[sec] += row["processed"] / max(row.get("dt", 1.0), 1e-3)
             lag[sec] += row["lag"]
             p99[sec] = max(p99[sec], row["e2e_p99_ms"])
             sink_ms[sec] += row.get("sink_ms_total", 0.0)
@@ -73,7 +74,7 @@ def load(scenario_dir: Path) -> dict:
     return {
         "summary": summary,
         "seconds": seconds,
-        "processed": [processed[s] for s in seconds],
+        "processed": [rate[s] for s in seconds],
         "lag": [lag[s] for s in seconds],
         "p99": [p99[s] for s in seconds],
         "throughput_during_produce": during / max(produce_s, 1),

@@ -1,0 +1,7 @@
+{
+  "rate": 8000,
+  "duration": 20.0,
+  "partitions": 4,
+  "num_products": 5000,
+  "shades_per_product": 6
+}

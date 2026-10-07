@@ -1,0 +1,32 @@
+{
+  "scenario": "pg-batched-1",
+  "sink": "pg-batched",
+  "consumers": 1,
+  "batchjob": false,
+  "rate": 1500,
+  "duration": 30.0,
+  "sent": 44997,
+  "produce_start": 1791332984.806028,
+  "produce_end": 1791333014.812568,
+  "drain_end": 1791333015.8140736,
+  "drained": true,
+  "validation": {
+    "events": 44997,
+    "stats_total": 44997,
+    "mismatched_products": 0
+  },
+  "replay": {
+    "before": {
+      "events": 44997,
+      "stats_total": 44997,
+      "mismatched_products": 0
+    },
+    "after": {
+      "events": 44997,
+      "stats_total": 44997,
+      "mismatched_products": 0
+    },
+    "redelivered": 44997,
+    "identical": true
+  }
+}

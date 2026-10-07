@@ -72,8 +72,8 @@ def run_scenario(name: str, rate: int, duration: float, results: Path, drain_tim
     for old in out.glob("*"):
         old.unlink()
 
-    topic = f"beauty.bench.{name}.{int(time.time())}"
-    group = f"bench-{name}"
+    topic = f"beauty.bench.{name.replace('+', '-')}.{int(time.time())}"
+    group = f"bench-{name.replace('+', '-')}"
     kafkautil.create_topic(topic)
     db.reset_streaming_tables()
 
