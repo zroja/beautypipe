@@ -105,7 +105,7 @@ def run(args: argparse.Namespace) -> None:
     total = 0
     zero_lag_windows = 0
     started = time.time()
-    metrics = open(args.metrics, "w")
+    metrics = None if args.metrics == "-" else open(args.metrics, "w")
 
     try:
         while not stop:
@@ -137,7 +137,7 @@ def run(args: argparse.Namespace) -> None:
                 current_lag = lag()
                 e2e = sorted(window.e2e_ms)
                 calls = sorted(window.sink_calls_ms)
-                metrics.write(
+                line = (
                     json.dumps(
                         {
                             "ts": now,
@@ -152,18 +152,22 @@ def run(args: argparse.Namespace) -> None:
                             "sink_call_p99_ms": percentile(calls, 0.99),
                         }
                     )
-                    + "\n"
                 )
-                metrics.flush()
+                if metrics:
+                    metrics.write(line + "\n")
+                    metrics.flush()
+                else:
+                    print(line, flush=True)
                 window = Window()
                 if args.until_drained:
                     zero_lag_windows = zero_lag_windows + 1 if (current_lag == 0 and total > 0) else 0
                     if zero_lag_windows >= 2 or now - started > args.timeout:
                         break
     finally:
-        metrics.close()
-        with open(args.metrics.replace(".jsonl", ".latencies.f32"), "wb") as f:
-            all_e2e.tofile(f)
+        if metrics:
+            metrics.close()
+            with open(args.metrics.replace(".jsonl", ".latencies.f32"), "wb") as f:
+                all_e2e.tofile(f)
         sampler.stop()
         sink.close()
         consumer.close()
@@ -175,7 +179,7 @@ def main() -> None:
     parser.add_argument("--topic", required=True)
     parser.add_argument("--group", default="beautypipe")
     parser.add_argument("--sink", choices=sorted(SINKS), default="pg-batched")
-    parser.add_argument("--metrics", required=True, help="path of the .jsonl metrics file")
+    parser.add_argument("--metrics", default="-", help="path of the .jsonl metrics file, or - for stdout")
     parser.add_argument("--poll-size", type=int, default=500, help="max messages per poll")
     parser.add_argument("--until-drained", action="store_true", help="exit once lag has been 0 for 2 seconds")
     parser.add_argument("--timeout", type=float, default=300)

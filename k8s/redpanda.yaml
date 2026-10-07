@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+  labels: { app: redpanda }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: redpanda }
+  template:
+    metadata:
+      labels: { app: redpanda }
+    spec:
+      containers:
+        - name: redpanda
+          image: docker.redpanda.com/redpandadata/redpanda:v25.2.3
+          args:
+            - redpanda
+            - start
+            - --smp=1
+            - --memory=1G
+            - --reserve-memory=0M
+            - --overprovisioned
+            - --check=false
+            - --node-id=0
+            - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:31092
+            - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:31092
+          ports:
+            - { containerPort: 9092, name: internal }
+            - { containerPort: 31092, name: external }
+          resources:
+            requests: { cpu: "500m", memory: 1200Mi }
+            limits: { memory: 1800Mi }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/redpanda/data }
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+spec:
+  selector: { app: redpanda }
+  ports:
+    - { name: internal, port: 9092, targetPort: 9092 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda-external
+spec:
+  type: NodePort
+  selector: { app: redpanda }
+  ports:
+    - { name: external, port: 31092, targetPort: 31092, nodePort: 31092 }

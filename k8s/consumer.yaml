@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer
+  labels: { app: consumer }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: consumer }
+  template:
+    metadata:
+      labels: { app: consumer }
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: consumer
+          image: beautypipe:dev
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - exec python -u -m beautypipe.consumer --topic "$TOPIC" --group "$GROUP" --sink "$SINK"
+          env:
+            - { name: SINK, value: pg-batched }
+            - { name: TOPIC, value: beauty.events }
+            - { name: GROUP, value: beauty-consumers }
+            - { name: KAFKA_BOOTSTRAP, value: "redpanda:9092" }
+            - { name: DATABASE_URL, value: "postgresql://beauty:beauty@postgres:5432/beauty" }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: "1", memory: 256Mi }

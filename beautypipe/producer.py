@@ -12,7 +12,7 @@ from . import config
 from .events import EventGenerator
 
 
-def produce(topic: str, rate: int, duration: float, seed: int = 1) -> int:
+def produce(topic: str, rate: int, duration: float, seed: int = 1, on_progress=None) -> int:
     producer = Producer({"bootstrap.servers": config.bootstrap(), "linger.ms": 5, "compression.type": "lz4"})
     gen = EventGenerator(config.NUM_PRODUCTS, config.SHADES_PER_PRODUCT, seed=seed)
     start = time.perf_counter()
@@ -26,6 +26,8 @@ def produce(topic: str, rate: int, duration: float, seed: int = 1) -> int:
             event = gen.next()
             producer.produce(topic, key=str(event.product_id), value=event.to_json())
             sent += 1
+        if on_progress:
+            on_progress(sent)
         producer.poll(0)
         time.sleep(0.005)
     producer.flush(30)

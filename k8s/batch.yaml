@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: catalog-seed
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: seed
+          image: beautypipe:dev
+          imagePullPolicy: IfNotPresent
+          args: ["beautypipe.batchjob", "seed"]
+          env:
+            - { name: DATABASE_URL, value: "postgresql://beauty:beauty@postgres:5432/beauty" }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: catalog-refresh
+spec:
+  schedule: "* * * * *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: refresh
+              image: beautypipe:dev
+              imagePullPolicy: IfNotPresent
+              args: ["beautypipe.batchjob", "refresh"]
+              env:
+                - { name: DATABASE_URL, value: "postgresql://beauty:beauty@postgres:5432/beauty" }

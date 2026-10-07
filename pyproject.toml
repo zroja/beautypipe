@@ -8,11 +8,11 @@ license = { text = "MIT" }
 dependencies = [
     "confluent-kafka>=2.5",
     "psycopg[binary]>=3.2",
-    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+report = ["matplotlib>=3.8"]
+dev = ["pytest>=8", "matplotlib>=3.8"]
 
 [build-system]
 requires = ["setuptools>=68"]
