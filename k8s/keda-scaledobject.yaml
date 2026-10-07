@@ -12,7 +12,7 @@ spec:
   triggers:
     - type: kafka
       metadata:
-        bootstrapServers: redpanda:9092
+        bootstrapServers: redpanda.default.svc.cluster.local:9092
         consumerGroup: ${GROUP}
         topic: ${TOPIC}
         lagThreshold: "2000"

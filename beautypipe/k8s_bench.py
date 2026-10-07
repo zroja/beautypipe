@@ -52,12 +52,12 @@ EXPERIMENTS = {
         sink="pg-batched", replicas=1, keda=False, pg_cpu="2", rate=4000, duration=45, kill_at=None,
     ),
     "pgcpu-limited": dict(
-        question="Batched sink, Postgres limited to 0.25 CPU, 1 consumer, 4,000 events/s",
-        sink="pg-batched", replicas=1, keda=False, pg_cpu="250m", rate=4000, duration=45, kill_at=None,
+        question="Batched sink, Postgres limited to 0.05 CPU, 1 consumer, 4,000 events/s",
+        sink="pg-batched", replicas=1, keda=False, pg_cpu="50m", rate=4000, duration=45, kill_at=None,
     ),
     "pgcpu-limited-keda": dict(
-        question="Batched sink, Postgres limited to 0.25 CPU, KEDA scales consumers on lag",
-        sink="pg-batched", replicas=1, keda=True, pg_cpu="250m", rate=4000, duration=45, kill_at=None,
+        question="Batched sink, Postgres limited to 0.05 CPU, KEDA scales consumers on lag",
+        sink="pg-batched", replicas=1, keda=True, pg_cpu="50m", rate=4000, duration=45, kill_at=None,
     ),
 }
 
@@ -107,7 +107,7 @@ def set_postgres_cpu(cpu: str) -> None:
     current = kubectl("get", "deploy/postgres", "-o", "jsonpath={.spec.template.spec.containers[0].resources.limits.cpu}")
     if current == cpu:
         return
-    request = "100m" if cpu.endswith("m") else "1"
+    request = cpu if cpu.endswith("m") else "1"
     kubectl("set", "resources", "deploy/postgres", f"--limits=cpu={cpu}", f"--requests=cpu={request}")
     kubectl("rollout", "status", "deploy/postgres", "--timeout=180s")
     ensure_database()

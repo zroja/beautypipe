@@ -25,7 +25,7 @@ spec:
             - --check=false
             - --node-id=0
             - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:31092
-            - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:31092
+            - --advertise-kafka-addr=internal://redpanda.default.svc.cluster.local:9092,external://localhost:31092
           ports:
             - { containerPort: 9092, name: internal }
             - { containerPort: 31092, name: external }
