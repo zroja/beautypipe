@@ -1,0 +1,52 @@
+{
+  "experiment": "naive-keda",
+  "kill_at": null,
+  "kill_mode": null,
+  "decoder": "versioned",
+  "on_bad": "dlq",
+  "bad_rate": 0.0,
+  "v2_after": null,
+  "expect": "sent",
+  "drain_timeout": 420,
+  "then": null,
+  "question": "Per-event sink, KEDA scales consumers on Kafka lag (1 to 8 pods)",
+  "sink": "pg-naive",
+  "replicas": 1,
+  "keda": true,
+  "pg_cpu": "2",
+  "rate": 3000,
+  "duration": 60,
+  "topic": "beauty.events.naive-keda.1791424753",
+  "sent": 179992,
+  "producer_stats": {
+    "sent": 179992,
+    "valid": 179992,
+    "v1_valid": 179992,
+    "bad": 0,
+    "v2": 0
+  },
+  "t0": 1791424768.5317214,
+  "produce_end": 1791424828.537867,
+  "drain_end": 1791424838.538965,
+  "drained": true,
+  "killed": null,
+  "validation": {
+    "events": 179992,
+    "stats_total": 179992,
+    "mismatched_products": 0
+  },
+  "phase_one": {
+    "stored": 179992,
+    "restarts": 0,
+    "dlq": {
+      "total": 0,
+      "by_reason": {}
+    }
+  },
+  "recovery": null,
+  "final_dlq": {
+    "total": 0,
+    "by_reason": {}
+  },
+  "restarts": 0
+}

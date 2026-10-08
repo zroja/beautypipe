@@ -1,0 +1,52 @@
+{
+  "experiment": "batched-fixed",
+  "kill_at": null,
+  "kill_mode": null,
+  "decoder": "versioned",
+  "on_bad": "dlq",
+  "bad_rate": 0.0,
+  "v2_after": null,
+  "expect": "sent",
+  "drain_timeout": 420,
+  "then": null,
+  "question": "Batched sink, 1 consumer pod, 3,000 events/s",
+  "sink": "pg-batched",
+  "replicas": 1,
+  "keda": false,
+  "pg_cpu": "2",
+  "rate": 3000,
+  "duration": 60,
+  "topic": "beauty.events.batched-fixed.1791424850",
+  "sent": 179990,
+  "producer_stats": {
+    "sent": 179990,
+    "valid": 179990,
+    "v1_valid": 179990,
+    "bad": 0,
+    "v2": 0
+  },
+  "t0": 1791424862.7007132,
+  "produce_end": 1791424922.7095907,
+  "drain_end": 1791424924.7098677,
+  "drained": true,
+  "killed": null,
+  "validation": {
+    "events": 179990,
+    "stats_total": 179990,
+    "mismatched_products": 0
+  },
+  "phase_one": {
+    "stored": 179990,
+    "restarts": 0,
+    "dlq": {
+      "total": 0,
+      "by_reason": {}
+    }
+  },
+  "recovery": null,
+  "final_dlq": {
+    "total": 0,
+    "by_reason": {}
+  },
+  "restarts": 0
+}

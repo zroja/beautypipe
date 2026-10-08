@@ -1,0 +1,39 @@
+# Single-node Apache Kafka (KRaft) managed by the Strimzi operator, equivalent to k8s/redpanda.yaml.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: dual
+  labels: { strimzi.io/cluster: beauty }
+spec:
+  replicas: 1
+  roles: [controller, broker]
+  storage: { type: ephemeral }
+  jvmOptions: { "-Xms": "768m", "-Xmx": "768m" }
+  resources:
+    requests: { cpu: 500m, memory: 1200Mi }
+    limits: { memory: 1800Mi }
+---
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: beauty
+spec:
+  kafka:
+    version: 4.3.1
+    listeners:
+      - { name: plain, port: 9092, type: internal, tls: false }
+      # Reachable from the host through the kind port mapping; the broker advertises localhost:31092.
+      - name: external
+        port: 9094
+        type: nodeport
+        tls: false
+        configuration:
+          bootstrap: { nodePort: 31092 }
+          brokers:
+            - { broker: 0, nodePort: 31093, advertisedHost: localhost, advertisedPort: 31092 }
+    config:
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1

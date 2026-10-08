@@ -228,7 +228,9 @@ def render(results: Path) -> None:
     plot_group(runs, ["pgcpu-full", "pgcpu-limited", "pgcpu-limited-keda"], results, "postgres-limits.png",
                "4,000 events/s into a resource-limited Postgres pod", with_cpu=True)
 
-    out = ["# Kubernetes results", "", "All runs: kind (single node), Redpanda, Postgres 16 and consumers as pods, "
+    config_file = results / "run_config.json"
+    broker = json.loads(config_file.read_text()).get("broker", "Redpanda v25.2.3") if config_file.exists() else "Redpanda"
+    out = ["# Kubernetes results", "", f"All runs: kind (single node), {broker}, Postgres 16 and consumers as pods, "
            "producer on the host at the stated rate, 8 partitions. Kubernetes-side metrics come from outside the consumers.", ""]
     for key in ("pod-delete", "pod-crash"):
         if key in runs:

@@ -1,0 +1,55 @@
+{
+  "experiment": "pod-crash",
+  "kill_at": 15,
+  "kill_mode": "crash",
+  "decoder": "versioned",
+  "on_bad": "dlq",
+  "bad_rate": 0.0,
+  "v2_after": null,
+  "expect": "sent",
+  "drain_timeout": 420,
+  "then": null,
+  "question": "Hard crash (SIGKILL) of the consumer container: any loss or double counting?",
+  "sink": "pg-batched",
+  "replicas": 1,
+  "keda": false,
+  "pg_cpu": "2",
+  "rate": 2000,
+  "duration": 45,
+  "topic": "beauty.events.pod-crash.1791424420",
+  "sent": 89995,
+  "producer_stats": {
+    "sent": 89995,
+    "valid": 89995,
+    "v1_valid": 89995,
+    "bad": 0,
+    "v2": 0
+  },
+  "t0": 1791424431.696969,
+  "produce_end": 1791424476.7028162,
+  "drain_end": 1791424478.703051,
+  "drained": true,
+  "killed": {
+    "pod": "consumer-75755f98f8-7pjt9",
+    "at": 1791424446.739407
+  },
+  "validation": {
+    "events": 89995,
+    "stats_total": 89995,
+    "mismatched_products": 0
+  },
+  "phase_one": {
+    "stored": 89995,
+    "restarts": 1,
+    "dlq": {
+      "total": 0,
+      "by_reason": {}
+    }
+  },
+  "recovery": null,
+  "final_dlq": {
+    "total": 0,
+    "by_reason": {}
+  },
+  "restarts": 1
+}

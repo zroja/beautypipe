@@ -226,6 +226,49 @@ topic with no retention policy or alerting. A production DLQ needs an alert on i
 The DLQ publish is flushed before offsets are committed, so a crash in between can produce duplicate dead letters;
 `beautypipe.dlq` deduplicates them by source partition and offset.
 
+### 6. Do the results hold on Apache Kafka managed by Strimzi?
+
+All of the above was run on Redpanda, a Kafka-compatible broker from a vendor. I repeated every Kubernetes experiment on
+**Apache Kafka 4.3.1 (KRaft) deployed by the [Strimzi](https://strimzi.io) operator 1.2.0** (a CNCF project), with the
+same consumer code, the same producer and the same harness; only the bootstrap address differs. Results are in
+[`results-k8s-strimzi/`](results-k8s-strimzi/summary.md), side by side with the Redpanda runs in
+[`comparison.md`](results-k8s-strimzi/comparison.md). Set it up with `scripts/k8s-up.sh && scripts/k8s-strimzi-up.sh`, then
+`python -m beautypipe.k8s_bench --broker strimzi`.
+
+| Experiment | Redpanda | Apache Kafka on Strimzi |
+|---|---|---|
+| Per-event sink, 1 pod, 3,000/s: peak backlog, drain | 134,322, 164 s | 138,840, 180 s |
+| Per-event sink, KEDA: peak backlog, drain, pods, pod-seconds | 33,813, 7 s, 8, 398 | 42,261, 10 s, 8, 428 |
+| Batched sink, 1 pod: peak backlog, pod-seconds | 548, 62 | 556, 64 |
+| Postgres 0.05 CPU, 1 pod: drain | 56 s | 54 s |
+| Postgres 0.05 CPU, KEDA: drain, pods, pod-seconds | 55 s, 5, 370 | 52 s, 6, 364 |
+| Hard crash: peak backlog, back under 1,000 after | 20,083, 11 s | 19,978, 11 s |
+| Graceful pod deletion: peak backlog, back under 1,000 after | 541, 2 s | 6,845, 5 s |
+| Schema v2, v1-only consumer, fail-fast: stored | 14,930 of 44,995 | 14,799 of 44,999 |
+| Schema v2, v1-only consumer, DLQ then redrive: stored | 44,998 of 44,998 | 44,997 of 44,997 |
+| 0.2% malformed, fail-fast: stored (valid events 44,883) | 1,800 | 2,316 |
+| 0.2% malformed, fail-fast + KEDA: stored | 2,330 | 3,435 |
+| 0.5% malformed: skip loses / DLQ loses | 237 / 0 | 237 / 0 |
+
+- **Every conclusion held.** Per-event sink: autoscaling fixed the symptom at about 6.7x the pod-seconds of the
+  batched sink's single pod (428 vs 64). Starved Postgres: autoscaling did not help (52 s vs 54 s drain). A crash cost one
+  session timeout (11 s on both). Fail-fast stalled on both schema change and bad events, and KEDA
+  scaling to 8 pods stored only 3,435 of 44,886 valid events. Skipping dropped 237 events silently on both; the DLQ lost none.
+  Rollup mismatches were 0 in every run on both brokers.
+- **One difference I did not expect and did not investigate**: graceful pod deletion produced a peak backlog of 6,845
+  events on Kafka against 541 on Redpanda (5 s to recover against 2 s). It is one run on each, and the cause could be
+  the group coordinator, the broker, or run-to-run noise; I would not claim it is a property of either broker.
+- Small differences (for example KEDA's peak backlog of 42,261 against 33,813) are within what I would expect from one run
+  on a shared VM.
+- **A finding about the harness, not the broker**: in the starved-Postgres runs with KEDA, consumers restarted 15 to 16
+  times. At 0.05 CPU Postgres fails its readiness probe, its Service then has no endpoints, and consumers started during that
+  window crash on "connection refused" because they do not retry the initial connection. Re-running that
+  experiment reproduced it (16 restarts, 54 s drain). The Redpanda runs of the same experiment did not record restarts, so I
+  cannot say whether it happened there too. A production consumer should retry its connection.
+- Limits: a single Kafka node (no replication, ephemeral storage, 768 MB heap) against a single Redpanda node, so this
+  compares behaviour of the pipeline, not the brokers' performance or Strimzi's high-availability features. Redpanda was
+  removed from the cluster while Kafka ran (both use host port 31092 and the VM is small).
+
 ### Honest limitations and things that went wrong
 
 - Everything runs on one 4 vCPU VM in a single-node kind cluster, so the producer, Redpanda, Postgres and consumers
@@ -234,8 +277,8 @@ The DLQ publish is flushed before offsets are committed, so a crash in between c
   are not limited. The 0.05 CPU limit is deliberately extreme. A first attempt with 0.25 CPU did not bind at all
   (the batched sink only needs about 0.1 cores at this rate), so I lowered it.
 - Pod-seconds are estimated from 2-second samples of ready pods.
-- Redpanda (Kafka protocol) is used as the broker. [Strimzi](https://strimzi.io) (CNCF) would be the usual operator
-  for Apache Kafka on Kubernetes and is a natural swap; the consumer code would not change.
+- Sections 1 to 5 were measured on Redpanda (Kafka protocol). Section 6 repeats them on Apache Kafka with the
+  [Strimzi](https://strimzi.io) operator; the consumer code did not change.
 - Pitfalls hit while building this, which are good talk material:
   - `kubectl delete pod --force` still sends SIGTERM, and a consumer that handles it leaves the group cleanly, so the
     first "crash" test showed no failure at all. A real crash needed SIGKILL via the container runtime.
@@ -254,6 +297,9 @@ scripts/k8s-up.sh                          # kind cluster, Redpanda, Postgres, K
 python -m beautypipe.k8s_bench --list      # the experiments
 python -m beautypipe.k8s_bench             # all of them, about 40 minutes -> results-k8s/
 python -m beautypipe.k8s_report            # charts + results-k8s/summary.md
+scripts/k8s-strimzi-up.sh                  # optional: swap Redpanda for Apache Kafka on Strimzi
+python -m beautypipe.k8s_bench --broker strimzi   # -> results-k8s-strimzi/
+python -m beautypipe.k8s_report --results results-k8s-strimzi
 kind delete cluster --name beautypipe      # tear down
 ```
 
@@ -393,6 +439,8 @@ python -m beautypipe.consumer --topic beauty.events --sink parquet              
 | `beautypipe/k8s_bench.py`, `k8s_report.py` | Kubernetes experiments and their charts |
 | `k8s/` | Manifests: Redpanda, Postgres, consumer Deployment, batch Job/CronJob, KEDA ScaledObject, kind config |
 | `scripts/k8s-up.sh` | Builds and loads images, creates the cluster, installs KEDA |
+| `scripts/k8s-strimzi-up.sh`, `k8s/strimzi-kafka.yaml` | Swaps Redpanda for Apache Kafka managed by Strimzi |
+| `beautypipe/compare_brokers.py` | Side-by-side table of the two brokers' results |
 | `Dockerfile` | Image used by the consumer, producer and batch pods |
 | `tests/` | Normalization, schema decoding, event determinism, sink idempotency and Parquet sink tests |
 

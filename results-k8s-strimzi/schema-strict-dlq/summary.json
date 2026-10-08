@@ -1,0 +1,63 @@
+{
+  "experiment": "schema-strict-dlq",
+  "kill_at": null,
+  "kill_mode": null,
+  "decoder": "strict-v1",
+  "on_bad": "dlq",
+  "bad_rate": 0.0,
+  "v2_after": 15,
+  "expect": "v1_valid",
+  "drain_timeout": 60,
+  "then": {
+    "decoder": "versioned",
+    "redrive": true
+  },
+  "question": "Same v2 deploy, but unparseable events go to a dead-letter topic; then the consumer is fixed and the DLQ redriven",
+  "sink": "pg-batched",
+  "replicas": 1,
+  "keda": false,
+  "pg_cpu": "2",
+  "rate": 1000,
+  "duration": 45,
+  "topic": "beauty.events.schema-strict-dlq.1791425399",
+  "sent": 44997,
+  "producer_stats": {
+    "sent": 44997,
+    "valid": 44997,
+    "v1_valid": 14998,
+    "bad": 0,
+    "v2": 29999
+  },
+  "t0": 1791425411.0818515,
+  "produce_end": 1791425456.0872972,
+  "drain_end": 1791425481.3331628,
+  "drained": true,
+  "killed": null,
+  "validation": {
+    "events": 44997,
+    "stats_total": 44997,
+    "mismatched_products": 0
+  },
+  "phase_one": {
+    "stored": 14998,
+    "restarts": 0,
+    "dlq": {
+      "total": 29999,
+      "by_reason": {
+        "schema_mismatch": 29999
+      }
+    }
+  },
+  "recovery": {
+    "redriven": 29999,
+    "recovered": true,
+    "seconds": 17.233630895614624
+  },
+  "final_dlq": {
+    "total": 29999,
+    "by_reason": {
+      "schema_mismatch": 29999
+    }
+  },
+  "restarts": 0
+}

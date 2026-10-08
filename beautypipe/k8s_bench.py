@@ -22,6 +22,18 @@ from string import Template
 from . import config, db, dlq, kafkautil
 from .producer import produce
 
+# In-cluster bootstrap address for the consumers, and the one KEDA uses (it runs in another namespace,
+# so it needs the fully qualified name).
+BROKERS = {
+    "redpanda": dict(consumer="redpanda:9092", keda="redpanda.default.svc.cluster.local:9092", label="Redpanda v25.2.3"),
+    "strimzi": dict(
+        consumer="beauty-kafka-bootstrap:9092",
+        keda="beauty-kafka-bootstrap.default.svc.cluster.local:9092",
+        label="Apache Kafka 4.3.1 (KRaft) on Strimzi 1.2.0",
+    ),
+}
+BROKER = {"name": "redpanda"}
+
 K8S_DIR = Path(__file__).resolve().parent.parent / "k8s"
 PARTITIONS = 8
 
@@ -157,6 +169,7 @@ def configure_consumers(
     kubectl(
         "set", "env", "deploy/consumer",
         f"SINK={sink}", f"TOPIC={topic}", f"GROUP={group}", f"DECODER={decoder}", f"ON_BAD={on_bad}",
+        f"KAFKA_BOOTSTRAP={BROKERS[BROKER['name']]['consumer']}",
     )
     kubectl("scale", "deploy/consumer", f"--replicas={replicas}")
     kubectl("rollout", "status", "deploy/consumer", "--timeout=180s")
@@ -164,7 +177,9 @@ def configure_consumers(
 
 
 def enable_keda(topic: str, group: str) -> None:
-    manifest = Template((K8S_DIR / "keda-scaledobject.yaml").read_text()).substitute(TOPIC=topic, GROUP=group)
+    manifest = Template((K8S_DIR / "keda-scaledobject.yaml").read_text()).substitute(
+        TOPIC=topic, GROUP=group, BOOTSTRAP=BROKERS[BROKER["name"]]["keda"]
+    )
     kubectl("apply", "-f", "-", input=manifest)
 
 
@@ -365,7 +380,8 @@ def run_experiment(name: str, results: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--experiments", default=",".join(EXPERIMENTS))
-    parser.add_argument("--out", default="results-k8s")
+    parser.add_argument("--broker", choices=sorted(BROKERS), default="redpanda", help="which broker the cluster runs")
+    parser.add_argument("--out", default=None, help="default: results-k8s (redpanda) or results-k8s-<broker>")
     parser.add_argument("--list", action="store_true")
     args = parser.parse_args()
     if args.list:
@@ -375,10 +391,11 @@ def main() -> None:
 
     os.environ.setdefault("KAFKA_BOOTSTRAP", "localhost:31092")
     os.environ.setdefault("DATABASE_URL", "postgresql://beauty:beauty@localhost:30432/beauty")
-    results = Path(args.out)
+    BROKER["name"] = args.broker
+    results = Path(args.out or ("results-k8s" if args.broker == "redpanda" else f"results-k8s-{args.broker}"))
     for name in args.experiments.split(","):
         run_experiment(name.strip(), results)
-    (results / "run_config.json").write_text(json.dumps({"partitions": PARTITIONS, "num_products": config.num_products(), "catalog": config.catalog_source()}, indent=2))
+    (results / "run_config.json").write_text(json.dumps({"broker": BROKERS[args.broker]["label"], "partitions": PARTITIONS, "num_products": config.num_products(), "catalog": config.catalog_source()}, indent=2))
 
 
 if __name__ == "__main__":

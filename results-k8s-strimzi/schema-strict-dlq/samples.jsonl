@@ -1,0 +1,114 @@
+{"kind": "k8s", "ts": 1791425409.0818028, "replicas": 1, "ready": 1, "pg_usage_usec": 2493302, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425409.0872133, "produced": 0, "stored": 0, "pg_connections": 1, "freshness_s": null}
+{"kind": "db", "ts": 1791425410.08733, "produced": 0, "stored": 0, "pg_connections": 1, "freshness_s": null}
+{"kind": "k8s", "ts": 1791425411.082057, "replicas": 1, "ready": 1, "pg_usage_usec": 2524284, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425411.087422, "produced": 5, "stored": 0, "pg_connections": 1, "freshness_s": null}
+{"kind": "db", "ts": 1791425412.0875187, "produced": 1002, "stored": 871, "pg_connections": 1, "freshness_s": 0.134326}
+{"kind": "k8s", "ts": 1791425413.0821607, "replicas": 1, "ready": 1, "pg_usage_usec": 2562511, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425413.0875978, "produced": 2003, "stored": 1928, "pg_connections": 1, "freshness_s": 0.076288}
+{"kind": "db", "ts": 1791425414.0876973, "produced": 3002, "stored": 2778, "pg_connections": 1, "freshness_s": 0.223835}
+{"kind": "k8s", "ts": 1791425415.0822673, "replicas": 1, "ready": 1, "pg_usage_usec": 2639763, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425415.0877888, "produced": 4005, "stored": 3835, "pg_connections": 1, "freshness_s": 0.161945}
+{"kind": "db", "ts": 1791425416.0879705, "produced": 5001, "stored": 4897, "pg_connections": 1, "freshness_s": 0.109126}
+{"kind": "k8s", "ts": 1791425417.0823894, "replicas": 1, "ready": 1, "pg_usage_usec": 2710635, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425417.0883987, "produced": 6002, "stored": 5946, "pg_connections": 1, "freshness_s": 0.05561}
+{"kind": "db", "ts": 1791425418.0885196, "produced": 7004, "stored": 6790, "pg_connections": 1, "freshness_s": 0.215734}
+{"kind": "k8s", "ts": 1791425419.082488, "replicas": 1, "ready": 1, "pg_usage_usec": 2749314, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425419.0886133, "produced": 8005, "stored": 7839, "pg_connections": 1, "freshness_s": 0.162841}
+{"kind": "db", "ts": 1791425420.088711, "produced": 9003, "stored": 8893, "pg_connections": 1, "freshness_s": 0.112965}
+{"kind": "k8s", "ts": 1791425421.0825822, "replicas": 1, "ready": 1, "pg_usage_usec": 2809055, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425421.0887995, "produced": 10003, "stored": 9945, "pg_connections": 1, "freshness_s": 0.060898}
+{"kind": "db", "ts": 1791425422.0888925, "produced": 11005, "stored": 10786, "pg_connections": 1, "freshness_s": 0.219982}
+{"kind": "k8s", "ts": 1791425423.0826757, "replicas": 1, "ready": 1, "pg_usage_usec": 2874696, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425423.0889838, "produced": 12006, "stored": 11841, "pg_connections": 1, "freshness_s": 0.162249}
+{"kind": "db", "ts": 1791425424.0890772, "produced": 13002, "stored": 12899, "pg_connections": 1, "freshness_s": 0.104329}
+{"kind": "k8s", "ts": 1791425425.0827656, "replicas": 1, "ready": 1, "pg_usage_usec": 2921438, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425425.0891604, "produced": 14002, "stored": 13812, "pg_connections": 1, "freshness_s": 0.192239}
+{"kind": "db", "ts": 1791425426.0892549, "produced": 15003, "stored": 14855, "pg_connections": 1, "freshness_s": 0.149296}
+{"kind": "k8s", "ts": 1791425427.082855, "replicas": 1, "ready": 1, "pg_usage_usec": 2964887, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425427.0893445, "produced": 16005, "stored": 14998, "pg_connections": 1, "freshness_s": 1.008632}
+{"kind": "db", "ts": 1791425428.0894365, "produced": 17003, "stored": 14998, "pg_connections": 1, "freshness_s": 2.008622}
+{"kind": "k8s", "ts": 1791425429.0831172, "replicas": 1, "ready": 1, "pg_usage_usec": 2994267, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425429.0895283, "produced": 18004, "stored": 14998, "pg_connections": 1, "freshness_s": 3.008559}
+{"kind": "db", "ts": 1791425430.0896227, "produced": 19006, "stored": 14998, "pg_connections": 1, "freshness_s": 4.009088}
+{"kind": "k8s", "ts": 1791425431.0832095, "replicas": 1, "ready": 1, "pg_usage_usec": 2999003, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425431.0897365, "produced": 20008, "stored": 14998, "pg_connections": 1, "freshness_s": 5.010076}
+{"kind": "db", "ts": 1791425432.0898328, "produced": 21005, "stored": 14998, "pg_connections": 1, "freshness_s": 6.009221}
+{"kind": "k8s", "ts": 1791425433.0833, "replicas": 1, "ready": 1, "pg_usage_usec": 3027664, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425433.0899253, "produced": 22007, "stored": 14998, "pg_connections": 1, "freshness_s": 7.009133}
+{"kind": "db", "ts": 1791425434.0900207, "produced": 23004, "stored": 14998, "pg_connections": 1, "freshness_s": 8.009208}
+{"kind": "k8s", "ts": 1791425435.0833914, "replicas": 1, "ready": 1, "pg_usage_usec": 3094075, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425435.0901031, "produced": 24004, "stored": 14998, "pg_connections": 1, "freshness_s": 9.009646}
+{"kind": "db", "ts": 1791425436.0902016, "produced": 25006, "stored": 14998, "pg_connections": 1, "freshness_s": 10.009333}
+{"kind": "k8s", "ts": 1791425437.0834844, "replicas": 1, "ready": 1, "pg_usage_usec": 3098798, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425437.0902965, "produced": 26006, "stored": 14998, "pg_connections": 1, "freshness_s": 11.00941}
+{"kind": "db", "ts": 1791425438.090388, "produced": 27003, "stored": 14998, "pg_connections": 1, "freshness_s": 12.009758}
+{"kind": "k8s", "ts": 1791425439.0835724, "replicas": 1, "ready": 1, "pg_usage_usec": 3128683, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425439.0904803, "produced": 28005, "stored": 14998, "pg_connections": 1, "freshness_s": 13.009593}
+{"kind": "db", "ts": 1791425440.0907502, "produced": 29004, "stored": 14998, "pg_connections": 1, "freshness_s": 14.010117}
+{"kind": "k8s", "ts": 1791425441.083665, "replicas": 1, "ready": 1, "pg_usage_usec": 3159619, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425441.0908468, "produced": 30004, "stored": 14998, "pg_connections": 1, "freshness_s": 15.010681}
+{"kind": "db", "ts": 1791425442.090946, "produced": 31005, "stored": 14998, "pg_connections": 1, "freshness_s": 16.010033}
+{"kind": "k8s", "ts": 1791425443.0837643, "replicas": 1, "ready": 1, "pg_usage_usec": 3164011, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425443.0910385, "produced": 32007, "stored": 14998, "pg_connections": 1, "freshness_s": 17.010772}
+{"kind": "db", "ts": 1791425444.0911348, "produced": 33008, "stored": 14998, "pg_connections": 1, "freshness_s": 18.010433}
+{"kind": "k8s", "ts": 1791425445.0838237, "replicas": 1, "ready": 1, "pg_usage_usec": 3194180, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425445.0912545, "produced": 34006, "stored": 14998, "pg_connections": 1, "freshness_s": 19.012809}
+{"kind": "db", "ts": 1791425446.091352, "produced": 35006, "stored": 14998, "pg_connections": 1, "freshness_s": 20.010401}
+{"kind": "k8s", "ts": 1791425447.0839357, "replicas": 1, "ready": 1, "pg_usage_usec": 3232086, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425447.0914488, "produced": 36007, "stored": 14998, "pg_connections": 1, "freshness_s": 21.010294}
+{"kind": "db", "ts": 1791425448.091539, "produced": 37007, "stored": 14998, "pg_connections": 1, "freshness_s": 22.010418}
+{"kind": "k8s", "ts": 1791425449.0840404, "replicas": 1, "ready": 1, "pg_usage_usec": 3236481, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425449.091632, "produced": 38006, "stored": 14998, "pg_connections": 1, "freshness_s": 23.010843}
+{"kind": "db", "ts": 1791425450.091734, "produced": 39008, "stored": 14998, "pg_connections": 1, "freshness_s": 24.011055}
+{"kind": "k8s", "ts": 1791425451.084129, "replicas": 1, "ready": 1, "pg_usage_usec": 3266225, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425451.0918224, "produced": 40006, "stored": 14998, "pg_connections": 1, "freshness_s": 25.010741}
+{"kind": "db", "ts": 1791425452.091908, "produced": 41006, "stored": 14998, "pg_connections": 1, "freshness_s": 26.011021}
+{"kind": "k8s", "ts": 1791425453.084425, "replicas": 1, "ready": 1, "pg_usage_usec": 3297575, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425453.0920002, "produced": 42006, "stored": 14998, "pg_connections": 1, "freshness_s": 27.011044}
+{"kind": "db", "ts": 1791425454.0921211, "produced": 43005, "stored": 14998, "pg_connections": 1, "freshness_s": 28.011332}
+{"kind": "k8s", "ts": 1791425455.0845366, "replicas": 1, "ready": 1, "pg_usage_usec": 3308440, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425455.0922194, "produced": 44006, "stored": 14998, "pg_connections": 1, "freshness_s": 29.011345}
+{"kind": "db", "ts": 1791425456.0923085, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 30.011402}
+{"kind": "k8s", "ts": 1791425457.0846436, "replicas": 1, "ready": 1, "pg_usage_usec": 3339273, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425457.0924006, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 31.011624}
+{"kind": "db", "ts": 1791425458.0925639, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 32.01181}
+{"kind": "k8s", "ts": 1791425459.0847564, "replicas": 1, "ready": 1, "pg_usage_usec": 3367805, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425459.0926695, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 33.011934}
+{"kind": "db", "ts": 1791425460.0927746, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 34.01192}
+{"kind": "k8s", "ts": 1791425461.0848653, "replicas": 1, "ready": 1, "pg_usage_usec": 3371669, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425461.0928597, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 35.012203}
+{"kind": "db", "ts": 1791425462.0930822, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 36.013099}
+{"kind": "k8s", "ts": 1791425463.0849855, "replicas": 1, "ready": 1, "pg_usage_usec": 3399776, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425463.0932155, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 37.012627}
+{"kind": "db", "ts": 1791425464.093327, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 38.012697}
+{"kind": "k8s", "ts": 1791425465.0852034, "replicas": 2, "ready": 1, "pg_usage_usec": 3432361, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425465.093424, "produced": 44997, "stored": 14998, "pg_connections": 2, "freshness_s": 39.012525}
+{"kind": "db", "ts": 1791425466.093548, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 40.014297}
+{"kind": "k8s", "ts": 1791425467.085324, "replicas": 1, "ready": 1, "pg_usage_usec": 3438579, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425467.0936446, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 41.013116}
+{"kind": "db", "ts": 1791425468.0937617, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 42.014267}
+{"kind": "k8s", "ts": 1791425469.0854423, "replicas": 1, "ready": 1, "pg_usage_usec": 3469050, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425469.0938957, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 43.014924}
+{"kind": "db", "ts": 1791425470.0940175, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 44.014392}
+{"kind": "k8s", "ts": 1791425471.085561, "replicas": 1, "ready": 1, "pg_usage_usec": 3498083, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425471.0941088, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 45.013262}
+{"kind": "db", "ts": 1791425472.0942252, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 46.013718}
+{"kind": "k8s", "ts": 1791425473.085683, "replicas": 1, "ready": 1, "pg_usage_usec": 3502100, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425473.0943146, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 47.013674}
+{"kind": "db", "ts": 1791425474.094431, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 48.013684}
+{"kind": "k8s", "ts": 1791425475.085815, "replicas": 1, "ready": 1, "pg_usage_usec": 3534884, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425475.094518, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 49.013602}
+{"kind": "db", "ts": 1791425476.094637, "produced": 44997, "stored": 14998, "pg_connections": 1, "freshness_s": 50.014481}
+{"kind": "k8s", "ts": 1791425477.0859292, "replicas": 1, "ready": 1, "pg_usage_usec": 3777378, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425477.0947325, "produced": 44997, "stored": 25498, "pg_connections": 1, "freshness_s": 40.054827}
+{"kind": "db", "ts": 1791425478.0948427, "produced": 44997, "stored": 44997, "pg_connections": 1, "freshness_s": 22.015761}
+{"kind": "k8s", "ts": 1791425479.0860505, "replicas": 1, "ready": 1, "pg_usage_usec": 4017644, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425479.0951736, "produced": 44997, "stored": 44997, "pg_connections": 1, "freshness_s": 23.015684}
+{"kind": "db", "ts": 1791425480.095291, "produced": 44997, "stored": 44997, "pg_connections": 1, "freshness_s": 24.015921}
+{"kind": "k8s", "ts": 1791425481.0861702, "replicas": 1, "ready": 1, "pg_usage_usec": 4046847, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425481.0955322, "produced": 44997, "stored": 44997, "pg_connections": 1, "freshness_s": 25.01564}
+{"kind": "db", "ts": 1791425482.0956533, "produced": 44997, "stored": 44997, "pg_connections": 1, "freshness_s": 26.016418}
+{"kind": "k8s", "ts": 1791425483.0862932, "replicas": 1, "ready": 1, "pg_usage_usec": 4077089, "pg_throttled_usec": 0, "pg_nr_throttled": 0}
+{"kind": "db", "ts": 1791425483.0957603, "produced": 44997, "stored": 44997, "pg_connections": 1, "freshness_s": 27.016259}
+{"kind": "db", "ts": 1791425484.095878, "produced": 44997, "stored": 44997, "pg_connections": 1, "freshness_s": 28.016319}
