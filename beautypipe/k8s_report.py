@@ -26,17 +26,18 @@ LABELS = {
     "schema-strict-dlq": "v2 schema, v1-only consumer, dead-letter topic, then fix and redrive",
     "schema-versioned": "v2 schema, consumer understands v1 and v2",
     "poison-fail": "0.2% malformed events, fail on bad event",
+    "poison-fail-keda": "0.2% malformed events, fail on bad event, KEDA autoscaling",
     "poison-skip": "0.5% malformed events, log and skip",
     "poison-dlq": "0.5% malformed events, dead-letter topic",
 }
 SCHEMA_RUNS = ["schema-strict-fail", "schema-strict-dlq", "schema-versioned"]
-POISON_RUNS = ["poison-fail", "poison-skip", "poison-dlq"]
+POISON_RUNS = ["poison-fail", "poison-fail-keda", "poison-skip", "poison-dlq"]
 COLORS = {
     "pod-delete": "#2a9d8f", "pod-crash": "#d93f6b",
     "naive-fixed": "#d93f6b", "naive-keda": "#e9a23b", "batched-fixed": "#2a9d8f",
     "pgcpu-full": "#2a9d8f", "pgcpu-limited": "#d93f6b", "pgcpu-limited-keda": "#e9a23b",
     "schema-strict-fail": "#d93f6b", "schema-strict-dlq": "#e9a23b", "schema-versioned": "#2a9d8f",
-    "poison-fail": "#d93f6b", "poison-skip": "#8d6bb8", "poison-dlq": "#2a9d8f",
+    "poison-fail": "#d93f6b", "poison-fail-keda": "#e9a23b", "poison-skip": "#8d6bb8", "poison-dlq": "#2a9d8f",
 }
 
 

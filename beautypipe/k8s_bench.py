@@ -81,6 +81,11 @@ EXPERIMENTS = {
         sink="pg-batched", replicas=1, keda=False, pg_cpu="2", rate=1000, duration=45, kill_at=None,
         decoder="versioned", on_bad="fail", bad_rate=0.002, expect="valid", drain_timeout=45,
     ),
+    "poison-fail-keda": dict(
+        question="Same 0.2% malformed events and fail-fast consumer, but KEDA scales consumers on lag (1 to 8 pods)",
+        sink="pg-batched", replicas=1, keda=True, pg_cpu="2", rate=1000, duration=45, kill_at=None,
+        decoder="versioned", on_bad="fail", bad_rate=0.002, expect="valid", drain_timeout=45,
+    ),
     "poison-skip": dict(
         question="0.5% malformed events, consumer logs and skips them",
         sink="pg-batched", replicas=1, keda=False, pg_cpu="2", rate=1000, duration=45, kill_at=None,

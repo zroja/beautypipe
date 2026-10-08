@@ -46,6 +46,7 @@ All runs: kind (single node), Redpanda, Postgres 16 and consumers as pods, produ
 | Scenario | Sent | Should be stored | Stored | In dead-letter topic | Missing | Consumer restarts |
 |---|---:|---:|---:|---:|---:|---:|
 | 0.2% malformed events, fail on bad event | 44,995 | 44,883 | 1,800 | 0 | 43,195 | 4 |
+| 0.2% malformed events, fail on bad event, KEDA autoscaling | 44,998 | 44,886 | 2,330 | 0 | 42,668 | 26 |
 | 0.5% malformed events, log and skip | 44,999 | 44,762 | 44,762 | 0 | 237 | 0 |
 | 0.5% malformed events, dead-letter topic | 44,998 | 44,761 | 44,761 | 237 | 0 | 0 |
 
