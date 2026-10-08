@@ -14,7 +14,7 @@ from .events import EventGenerator
 
 def produce(topic: str, rate: int, duration: float, seed: int = 1, on_progress=None) -> int:
     producer = Producer({"bootstrap.servers": config.bootstrap(), "linger.ms": 5, "compression.type": "lz4"})
-    gen = EventGenerator(config.NUM_PRODUCTS, config.SHADES_PER_PRODUCT, seed=seed)
+    gen = EventGenerator(config.num_products(), config.shades_per_product(), seed=seed)
     start = time.perf_counter()
     sent = 0
     while True:

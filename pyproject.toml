@@ -21,6 +21,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 packages = ["beautypipe"]
 
+[tool.setuptools.package-data]
+beautypipe = ["data/*.gz"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["integration: needs a running Postgres (DATABASE_URL)"]

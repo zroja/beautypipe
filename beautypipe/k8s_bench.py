@@ -301,7 +301,7 @@ def main() -> None:
     results = Path(args.out)
     for name in args.experiments.split(","):
         run_experiment(name.strip(), results)
-    (results / "run_config.json").write_text(json.dumps({"partitions": PARTITIONS, "num_products": config.NUM_PRODUCTS}, indent=2))
+    (results / "run_config.json").write_text(json.dumps({"partitions": PARTITIONS, "num_products": config.num_products(), "catalog": config.catalog_source()}, indent=2))
 
 
 if __name__ == "__main__":

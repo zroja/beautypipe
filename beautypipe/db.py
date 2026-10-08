@@ -32,7 +32,18 @@ CREATE TABLE IF NOT EXISTS products (
     brand          text NOT NULL,
     raw_name       text NOT NULL,
     category       text NOT NULL,
+    ingredients_text text,
+    canonical_key  text,
     refreshed_at   timestamptz
+);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredients_text text;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS canonical_key text;
+
+CREATE TABLE IF NOT EXISTS product_ingredients (
+    product_id  integer NOT NULL,
+    position    integer NOT NULL,
+    normalized  text NOT NULL,
+    PRIMARY KEY (product_id, position)
 );
 
 CREATE TABLE IF NOT EXISTS shades (

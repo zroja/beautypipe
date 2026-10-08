@@ -166,7 +166,8 @@ def main() -> None:
         run_scenario(name.strip(), args.rate, args.duration, results, args.drain_timeout, not args.no_replay_check)
     (results / "run_config.json").write_text(
         json.dumps({"rate": args.rate, "duration": args.duration, "partitions": config.PARTITIONS,
-                    "num_products": config.NUM_PRODUCTS, "shades_per_product": config.SHADES_PER_PRODUCT}, indent=2)
+                    "num_products": config.num_products(), "shades_per_product": config.shades_per_product(),
+                    "catalog": config.catalog_source()}, indent=2)
     )
 
 

@@ -43,3 +43,15 @@ def test_sink_is_idempotent_under_redelivery(clean_db, sink_cls):
     assert result["events"] == 300
     assert result["stats_total"] == 300
     assert result["mismatched_products"] == 0
+
+
+def test_obf_catalog_is_real_and_consistent(monkeypatch):
+    from beautypipe import config
+    from beautypipe.catalog import get_catalog
+
+    monkeypatch.setenv("CATALOG", "obf")
+    catalog = get_catalog()
+    assert len(catalog.products) == config.num_products() > 1000
+    assert config.shades_per_product() == 1
+    assert {s.product_id for s in catalog.shades} == {p.product_id for p in catalog.products}
+    assert sum(1 for p in catalog.products if p.ingredients_text) > 400
