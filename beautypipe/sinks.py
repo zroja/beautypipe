@@ -32,8 +32,8 @@ def _ts(ms: int) -> datetime:
 
 
 _INSERT_ONE = """
-INSERT INTO events (event_id, event_type, product_id, shade_id, user_id, rating, event_ts)
-VALUES (%s, %s, %s, %s, %s, %s, %s)
+INSERT INTO events (event_id, event_type, product_id, shade_id, user_id, rating, event_ts, channel)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (event_id) DO NOTHING
 RETURNING 1
 """
@@ -65,7 +65,7 @@ class PostgresNaiveSink:
         for e in events:
             ts = _ts(e.produced_at_ms)
             inserted = conn.execute(
-                _INSERT_ONE, (e.event_id, e.event_type, e.product_id, e.shade_id, e.user_id, e.rating, ts)
+                _INSERT_ONE, (e.event_id, e.event_type, e.product_id, e.shade_id, e.user_id, e.rating, ts, e.channel)
             ).fetchone()
             if inserted:
                 is_review = e.event_type == "review"
@@ -88,10 +88,10 @@ class PostgresNaiveSink:
 
 _BATCH_SQL = """
 WITH inserted AS (
-    INSERT INTO events (event_id, event_type, product_id, shade_id, user_id, rating, event_ts)
+    INSERT INTO events (event_id, event_type, product_id, shade_id, user_id, rating, event_ts, channel)
     SELECT * FROM unnest(
         %(ids)s::text[], %(types)s::text[], %(products)s::int[], %(shades)s::int[],
-        %(users)s::int[], %(ratings)s::smallint[], %(ts)s::timestamptz[]
+        %(users)s::int[], %(ratings)s::smallint[], %(ts)s::timestamptz[], %(channels)s::text[]
     )
     ON CONFLICT (event_id) DO NOTHING
     RETURNING product_id, event_type, rating, event_ts
@@ -133,6 +133,7 @@ class PostgresBatchedSink:
             "users": [e.user_id for e in events],
             "ratings": [e.rating for e in events],
             "ts": [_ts(e.produced_at_ms) for e in events],
+            "channels": [e.channel for e in events],
         }
         self._conn.execute(_BATCH_SQL, params)
         self._conn.commit()
@@ -141,10 +142,17 @@ class PostgresBatchedSink:
         self._conn.close()
 
 
+def _parquet_sink() -> Sink:
+    from .parquet_sink import ParquetSink  # optional dependency: pip install 'beautypipe[columnar]'
+
+    return ParquetSink()
+
+
 SINKS = {
     "blackhole": BlackholeSink,
     "pg-naive": PostgresNaiveSink,
     "pg-batched": PostgresBatchedSink,
+    "parquet": _parquet_sink,
 }
 
 

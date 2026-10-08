@@ -1,0 +1,167 @@
+{
+  "threads": 2,
+  "catalog": "synthetic",
+  "num_products": 5000,
+  "ingest": {
+    "events": 2000000,
+    "batch": 500,
+    "postgres": {
+      "calls": 4080,
+      "total_s": 70.63224720425933,
+      "mean_ms": 17.3118252951616,
+      "p50_ms": 16.06750900100451,
+      "p99_ms": 58.80535799951758,
+      "events_per_s_of_sink_time": 28315.678449480143
+    },
+    "parquet": {
+      "calls": 4080,
+      "total_s": 8.476048357864784,
+      "mean_ms": 2.0774628328099958,
+      "p50_ms": 2.026823000051081,
+      "p99_ms": 3.1632649988750927,
+      "events_per_s_of_sink_time": 235959.01244997422
+    },
+    "redelivered_batches": 80
+  },
+  "postgres_bytes": {
+    "table": 186187776,
+    "indexes": 299155456,
+    "total": 485425152
+  },
+  "postgres_rows": 2000000,
+  "parquet_small": {
+    "files": 4087,
+    "bytes": 78026673,
+    "rows_raw": 2040000,
+    "rows_deduped": 2000000
+  },
+  "compaction": {
+    "rows_before": 2040000,
+    "distinct_before": 2000000,
+    "rows_after": 2000000,
+    "files_before": 4087,
+    "files_after": 8,
+    "seconds": 1.7732580709998729
+  },
+  "parquet_compacted": {
+    "files": 8,
+    "bytes": 54664654
+  },
+  "queries": {
+    "top_products": {
+      "label": "Top 20 products by review count and average rating (full scan + group by)",
+      "postgres": {
+        "median_ms": 89.50990400626324,
+        "min_ms": 70.98200999462279,
+        "first_ms": 70.98200999462279
+      },
+      "duckdb_small_files": {
+        "median_ms": 285.4554069999722,
+        "min_ms": 279.6876139982487,
+        "first_ms": 356.8331299975398
+      },
+      "duckdb_small_files_deduped": {
+        "median_ms": 613.2748909949441,
+        "min_ms": 593.5935279994737,
+        "first_ms": 622.4806809987058
+      },
+      "duckdb_compacted": {
+        "median_ms": 10.814847002620809,
+        "min_ms": 10.252870997646824,
+        "first_ms": 13.720591996388976
+      },
+      "agree": true
+    },
+    "hourly": {
+      "label": "Events per hour and type over the whole period (scan + time bucket)",
+      "postgres": {
+        "median_ms": 964.4828279997455,
+        "min_ms": 936.3514119977481,
+        "first_ms": 1071.4419249998173
+      },
+      "duckdb_small_files": {
+        "median_ms": 465.21918600046774,
+        "min_ms": 463.35758199711563,
+        "first_ms": 511.3845450032386
+      },
+      "duckdb_small_files_deduped": {
+        "median_ms": 798.3652840048308,
+        "min_ms": 791.0326880009961,
+        "first_ms": 808.7572730000829
+      },
+      "duckdb_compacted": {
+        "median_ms": 234.3446859958931,
+        "min_ms": 233.91670899582095,
+        "first_ms": 237.9781700001331
+      },
+      "agree": true
+    },
+    "distinct_users": {
+      "label": "Top 20 shades by distinct users (count distinct)",
+      "postgres": {
+        "median_ms": 2131.9620630019926,
+        "min_ms": 2114.8531020007795,
+        "first_ms": 2297.5500370012014
+      },
+      "duckdb_small_files": {
+        "median_ms": 363.8369070031331,
+        "min_ms": 347.5901179990615,
+        "first_ms": 392.3918520013103
+      },
+      "duckdb_compacted": {
+        "median_ms": 88.45552799903089,
+        "min_ms": 84.63334700354608,
+        "first_ms": 94.26201500173192
+      },
+      "agree": true
+    },
+    "point_recent": {
+      "label": "Last 20 events of one product (id 777)",
+      "postgres": {
+        "median_ms": 0.3237630007788539,
+        "min_ms": 0.1308029968640767,
+        "first_ms": 1.6239739998127334
+      },
+      "duckdb_small_files": {
+        "median_ms": 351.6081170018879,
+        "min_ms": 346.08629899594234,
+        "first_ms": 370.31405699963216
+      },
+      "duckdb_small_files_deduped": {
+        "median_ms": 635.1787099993089,
+        "min_ms": 630.8762589978869,
+        "first_ms": 704.843430998153
+      },
+      "duckdb_compacted": {
+        "median_ms": 13.936630995885935,
+        "min_ms": 13.68538699898636,
+        "first_ms": 17.786325995984953
+      },
+      "agree": true
+    },
+    "rollup_one": {
+      "label": "Review count and average rating of one product (id 777)",
+      "postgres": {
+        "median_ms": 0.11888599692611024,
+        "min_ms": 0.08616899867774919,
+        "first_ms": 4.651130999263842
+      },
+      "duckdb_small_files": {
+        "median_ms": 197.85083499300526,
+        "min_ms": 191.9392260024324,
+        "first_ms": 201.7099029981182
+      },
+      "duckdb_small_files_deduped": {
+        "median_ms": 620.2973859981284,
+        "min_ms": 606.7470189955202,
+        "first_ms": 677.5787090009544
+      },
+      "duckdb_compacted": {
+        "median_ms": 2.9484909973689355,
+        "min_ms": 2.8328810003586113,
+        "first_ms": 8.06973499857122
+      },
+      "agree": true
+    }
+  }
+}
