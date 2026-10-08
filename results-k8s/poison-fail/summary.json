@@ -1,0 +1,52 @@
+{
+  "experiment": "poison-fail",
+  "kill_at": null,
+  "kill_mode": null,
+  "decoder": "versioned",
+  "on_bad": "fail",
+  "bad_rate": 0.002,
+  "v2_after": null,
+  "expect": "valid",
+  "drain_timeout": 45,
+  "then": null,
+  "question": "0.2% malformed events (truncated JSON, missing fields, bad values), consumer treats them as fatal",
+  "sink": "pg-batched",
+  "replicas": 1,
+  "keda": false,
+  "pg_cpu": "2",
+  "rate": 1000,
+  "duration": 45,
+  "topic": "beauty.events.poison-fail.1791422268",
+  "sent": 44995,
+  "producer_stats": {
+    "sent": 44995,
+    "valid": 44883,
+    "v1_valid": 44883,
+    "bad": 112,
+    "v2": 0
+  },
+  "t0": 1791422281.160844,
+  "produce_end": 1791422326.1646209,
+  "drain_end": 1791422371.1705737,
+  "drained": false,
+  "killed": null,
+  "validation": {
+    "events": 1800,
+    "stats_total": 1800,
+    "mismatched_products": 0
+  },
+  "phase_one": {
+    "stored": 1800,
+    "restarts": 4,
+    "dlq": {
+      "total": 0,
+      "by_reason": {}
+    }
+  },
+  "recovery": null,
+  "final_dlq": {
+    "total": 0,
+    "by_reason": {}
+  },
+  "restarts": 4
+}

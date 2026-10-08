@@ -18,11 +18,13 @@ spec:
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
-            - exec python -u -m beautypipe.consumer --topic "$TOPIC" --group "$GROUP" --sink "$SINK"
+            - exec python -u -m beautypipe.consumer --topic "$TOPIC" --group "$GROUP" --sink "$SINK" --decoder "$DECODER" --on-bad-event "$ON_BAD"
           env:
             - { name: SINK, value: pg-batched }
             - { name: TOPIC, value: beauty.events }
             - { name: GROUP, value: beauty-consumers }
+            - { name: DECODER, value: versioned }
+            - { name: ON_BAD, value: dlq }
             - { name: KAFKA_BOOTSTRAP, value: "redpanda:9092" }
             - { name: DATABASE_URL, value: "postgresql://beauty:beauty@postgres:5432/beauty" }
           resources:

@@ -15,10 +15,10 @@ import threading
 import time
 from array import array
 
-from confluent_kafka import Consumer, KafkaError, TopicPartition
+from confluent_kafka import Consumer, KafkaError, Producer, TopicPartition
 
-from . import config
-from .events import Event
+from . import config, kafkautil
+from .schema import DECODERS, BadEvent
 from .sinks import SINKS, make_sink
 
 
@@ -32,6 +32,7 @@ class Window:
     def __init__(self) -> None:
         self.started = time.time()
         self.processed = 0
+        self.dlq = 0
         self.sink_calls_ms: list[float] = []
         self.e2e_ms: list[float] = []
 
@@ -73,6 +74,12 @@ def run(args: argparse.Namespace) -> None:
     signal.signal(signal.SIGINT, handle_signal)
 
     sink = make_sink(args.sink)
+    decode = DECODERS[args.decoder]
+    dlq_topic = args.dlq_topic or f"{args.topic}.dlq"
+    dlq_producer = None
+    if args.on_bad_event == "dlq":
+        kafkautil.ensure_topic(dlq_topic)
+        dlq_producer = Producer({"bootstrap.servers": config.bootstrap(), "linger.ms": 5})
     consumer = Consumer(
         {
             "bootstrap.servers": config.bootstrap(),
@@ -111,13 +118,39 @@ def run(args: argparse.Namespace) -> None:
         while not stop:
             messages = consumer.consume(num_messages=args.poll_size, timeout=0.2)
             events = []
+            bad = 0
             for m in messages:
                 if m.error():
                     if m.error().code() != KafkaError._PARTITION_EOF:
                         print(f"consumer error: {m.error()}", flush=True)
                     continue
-                events.append(Event.from_json(m.value()))
+                try:
+                    events.append(decode(m.value()))
+                except BadEvent as exc:
+                    if args.on_bad_event == "fail":
+                        print(
+                            f"FATAL bad event {exc.reason} at {m.topic()}[{m.partition()}]@{m.offset()}",
+                            flush=True,
+                        )
+                        raise SystemExit(1) from exc
+                    bad += 1
+                    if dlq_producer:
+                        dlq_producer.produce(
+                            dlq_topic,
+                            key=m.key(),
+                            value=m.value(),
+                            headers=[
+                                ("reason", exc.reason.encode()),
+                                ("source_topic", m.topic().encode()),
+                                ("source_partition", str(m.partition()).encode()),
+                                ("source_offset", str(m.offset()).encode()),
+                            ],
+                        )
                 next_offset[m.partition()] = m.offset() + 1
+            if bad:
+                window.dlq += bad
+                if dlq_producer:
+                    dlq_producer.flush(30)
 
             if events:
                 t0 = time.perf_counter()
@@ -130,6 +163,7 @@ def run(args: argparse.Namespace) -> None:
                     all_e2e.append(latency)
                 window.processed += len(events)
                 total += len(events)
+            if events or bad:
                 consumer.commit(asynchronous=True)
 
             now = time.time()
@@ -143,6 +177,7 @@ def run(args: argparse.Namespace) -> None:
                             "ts": now,
                             "dt": now - window.started,
                             "processed": window.processed,
+                            "dlq": window.dlq,
                             "lag": current_lag,
                             "e2e_p50_ms": percentile(e2e, 0.50),
                             "e2e_p99_ms": percentile(e2e, 0.99),
@@ -180,6 +215,11 @@ def main() -> None:
     parser.add_argument("--group", default="beautypipe")
     parser.add_argument("--sink", choices=sorted(SINKS), default="pg-batched")
     parser.add_argument("--metrics", default="-", help="path of the .jsonl metrics file, or - for stdout")
+    parser.add_argument("--decoder", choices=sorted(DECODERS), default="versioned",
+                        help="strict-v1 only accepts schema v1 exactly; versioned understands v1 and v2")
+    parser.add_argument("--on-bad-event", choices=["fail", "dlq", "skip"], default="dlq",
+                        help="fail: exit (poison pill), dlq: publish to the dead-letter topic, skip: drop silently")
+    parser.add_argument("--dlq-topic", default=None, help="default: <topic>.dlq")
     parser.add_argument("--poll-size", type=int, default=500, help="max messages per poll")
     parser.add_argument("--until-drained", action="store_true", help="exit once lag has been 0 for 2 seconds")
     parser.add_argument("--timeout", type=float, default=300)

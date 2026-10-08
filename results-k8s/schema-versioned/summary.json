@@ -1,0 +1,52 @@
+{
+  "experiment": "schema-versioned",
+  "kill_at": null,
+  "kill_mode": null,
+  "decoder": "versioned",
+  "on_bad": "dlq",
+  "bad_rate": 0.0,
+  "v2_after": 15,
+  "expect": "valid",
+  "drain_timeout": 60,
+  "then": null,
+  "question": "Same v2 deploy against a consumer that understands both schema versions",
+  "sink": "pg-batched",
+  "replicas": 1,
+  "keda": false,
+  "pg_cpu": "2",
+  "rate": 1000,
+  "duration": 45,
+  "topic": "beauty.events.schema-versioned.1791422197",
+  "sent": 44998,
+  "producer_stats": {
+    "sent": 44998,
+    "valid": 44998,
+    "v1_valid": 14999,
+    "bad": 0,
+    "v2": 29999
+  },
+  "t0": 1791422210.017201,
+  "produce_end": 1791422255.0238295,
+  "drain_end": 1791422257.0241368,
+  "drained": true,
+  "killed": null,
+  "validation": {
+    "events": 44998,
+    "stats_total": 44998,
+    "mismatched_products": 0
+  },
+  "phase_one": {
+    "stored": 44998,
+    "restarts": 0,
+    "dlq": {
+      "total": 0,
+      "by_reason": {}
+    }
+  },
+  "recovery": null,
+  "final_dlq": {
+    "total": 0,
+    "by_reason": {}
+  },
+  "restarts": 0
+}

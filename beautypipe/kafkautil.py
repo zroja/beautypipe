@@ -26,3 +26,14 @@ def delete_topic(name: str) -> None:
             fut.result(timeout=30)
         except Exception:
             pass
+
+
+def ensure_topic(name: str, partitions: int = 1) -> None:
+    """Create the topic if it does not exist yet (several consumers may race to do so)."""
+    client = admin()
+    for fut in client.create_topics([NewTopic(name, num_partitions=partitions, replication_factor=1)]).values():
+        try:
+            fut.result(timeout=30)
+        except Exception as exc:
+            if "ALREADY_EXISTS" not in str(exc):
+                raise

@@ -17,13 +17,54 @@ class Event:
     user_id: int
     rating: int | None
     produced_at_ms: int
+    channel: str | None = None
 
     def to_json(self) -> bytes:
-        return json.dumps(self.__dict__, separators=(",", ":")).encode()
+        """Schema v1 payload. `channel` only exists from v2 on, so it is omitted when unset."""
+        payload = {k: v for k, v in self.__dict__.items() if k != "channel" or v is not None}
+        return json.dumps(payload, separators=(",", ":")).encode()
+
+    def to_json_v2(self) -> bytes:
+        """Schema v2: `user_id` becomes `customer_id`, `produced_at_ms` becomes `occurred_at_ms`, `channel` is new."""
+        return json.dumps(
+            {
+                "schema_version": 2,
+                "event_id": self.event_id,
+                "event_type": self.event_type,
+                "product_id": self.product_id,
+                "shade_id": self.shade_id,
+                "customer_id": self.user_id,
+                "rating": self.rating,
+                "occurred_at_ms": self.produced_at_ms,
+                "channel": self.channel or "app",
+            },
+            separators=(",", ":"),
+        ).encode()
 
     @staticmethod
     def from_json(raw: bytes) -> "Event":
         return Event(**json.loads(raw))
+
+
+BAD_KINDS = ("invalid_json", "missing_field", "wrong_type", "bad_rating", "unknown_event_type", "unsupported_version")
+
+
+def corrupt(payload: bytes, kind: str) -> bytes:
+    """Damage a valid payload in one of the ways real producers do."""
+    if kind == "invalid_json":
+        return payload[: max(1, len(payload) // 2)]
+    doc = json.loads(payload)
+    if kind == "missing_field":
+        doc.pop("product_id", None)
+    elif kind == "wrong_type":
+        doc["product_id"] = "N/A"
+    elif kind == "bad_rating":
+        doc["event_type"], doc["rating"] = "review", 11
+    elif kind == "unknown_event_type":
+        doc["event_type"] = "purchase"
+    elif kind == "unsupported_version":
+        doc["schema_version"] = 99
+    return json.dumps(doc, separators=(",", ":")).encode()
 
 
 def event_id_for(seed: int, index: int) -> str:
@@ -42,7 +83,7 @@ class EventGenerator:
         self._product_ids = list(range(1, num_products + 1))
         self._index = 0
 
-    def next(self, now_ms: int | None = None) -> Event:
+    def next(self, now_ms: int | None = None, channel: str | None = None) -> Event:
         rng = self._rng
         product_id = rng.choices(self._product_ids, cum_weights=self._cum_weights)[0]
         roll = rng.random()
@@ -55,6 +96,7 @@ class EventGenerator:
             user_id=rng.randrange(1, 200_000),
             rating=rng.choice([1, 2, 3, 4, 4, 5, 5, 5]) if event_type == "review" else None,
             produced_at_ms=now_ms if now_ms is not None else int(time.time() * 1000),
+            channel=channel,
         )
         self._index += 1
         return event

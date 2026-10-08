@@ -12,8 +12,10 @@ CREATE TABLE IF NOT EXISTS events (
     shade_id    integer NOT NULL,
     user_id     integer NOT NULL,
     rating      smallint,
-    event_ts    timestamptz NOT NULL
+    event_ts    timestamptz NOT NULL,
+    channel     text
 );
+ALTER TABLE events ADD COLUMN IF NOT EXISTS channel text;
 CREATE INDEX IF NOT EXISTS events_product_ts ON events (product_id, event_ts);
 CREATE INDEX IF NOT EXISTS events_shade ON events (shade_id);
 CREATE INDEX IF NOT EXISTS events_ts ON events (event_ts);

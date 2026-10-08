@@ -55,3 +55,16 @@ def test_obf_catalog_is_real_and_consistent(monkeypatch):
     assert config.shades_per_product() == 1
     assert {s.product_id for s in catalog.shades} == {p.product_id for p in catalog.products}
     assert sum(1 for p in catalog.products if p.ingredients_text) > 400
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("sink_cls", [PostgresNaiveSink, PostgresBatchedSink])
+def test_channel_from_schema_v2_is_stored(clean_db, sink_cls):
+    gen = EventGenerator(50, 6, seed=12)
+    events = [gen.next(channel="web" if i % 2 else None) for i in range(40)]
+    sink = sink_cls()
+    sink.write(events)
+    sink.close()
+    with db.connect() as conn:
+        rows = dict(conn.execute("SELECT coalesce(channel, 'none'), count(*) FROM events GROUP BY 1").fetchall())
+    assert rows == {"web": 20, "none": 20}

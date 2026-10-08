@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 from string import Template
 
-from . import config, db, kafkautil
+from . import config, db, dlq, kafkautil
 from .producer import produce
 
 K8S_DIR = Path(__file__).resolve().parent.parent / "k8s"
@@ -58,6 +58,38 @@ EXPERIMENTS = {
     "pgcpu-limited-keda": dict(
         question="Batched sink, Postgres limited to 0.05 CPU, KEDA scales consumers on lag",
         sink="pg-batched", replicas=1, keda=True, pg_cpu="50m", rate=4000, duration=45, kill_at=None,
+    ),
+    # Schema change and malformed records. Gentler rate: the point is correctness, not throughput.
+    "schema-strict-fail": dict(
+        question="Producer deploys schema v2 at t=15s; consumer only knows v1 and crashes on what it cannot parse",
+        sink="pg-batched", replicas=1, keda=False, pg_cpu="2", rate=1000, duration=45, kill_at=None,
+        decoder="strict-v1", on_bad="fail", v2_after=15, expect="v1_valid", drain_timeout=45,
+    ),
+    "schema-strict-dlq": dict(
+        question="Same v2 deploy, but unparseable events go to a dead-letter topic; then the consumer is fixed and the DLQ redriven",
+        sink="pg-batched", replicas=1, keda=False, pg_cpu="2", rate=1000, duration=45, kill_at=None,
+        decoder="strict-v1", on_bad="dlq", v2_after=15, expect="v1_valid", drain_timeout=60,
+        then=dict(decoder="versioned", redrive=True),
+    ),
+    "schema-versioned": dict(
+        question="Same v2 deploy against a consumer that understands both schema versions",
+        sink="pg-batched", replicas=1, keda=False, pg_cpu="2", rate=1000, duration=45, kill_at=None,
+        decoder="versioned", on_bad="dlq", v2_after=15, expect="valid", drain_timeout=60,
+    ),
+    "poison-fail": dict(
+        question="0.2% malformed events (truncated JSON, missing fields, bad values), consumer treats them as fatal",
+        sink="pg-batched", replicas=1, keda=False, pg_cpu="2", rate=1000, duration=45, kill_at=None,
+        decoder="versioned", on_bad="fail", bad_rate=0.002, expect="valid", drain_timeout=45,
+    ),
+    "poison-skip": dict(
+        question="0.5% malformed events, consumer logs and skips them",
+        sink="pg-batched", replicas=1, keda=False, pg_cpu="2", rate=1000, duration=45, kill_at=None,
+        decoder="versioned", on_bad="skip", bad_rate=0.005, expect="valid", drain_timeout=60,
+    ),
+    "poison-dlq": dict(
+        question="0.5% malformed events, consumer sends them to a dead-letter topic",
+        sink="pg-batched", replicas=1, keda=False, pg_cpu="2", rate=1000, duration=45, kill_at=None,
+        decoder="versioned", on_bad="dlq", bad_rate=0.005, expect="valid", drain_timeout=60,
     ),
 }
 
@@ -113,9 +145,14 @@ def set_postgres_cpu(cpu: str) -> None:
     ensure_database()
 
 
-def configure_consumers(sink: str, topic: str, group: str, replicas: int) -> None:
+def configure_consumers(
+    sink: str, topic: str, group: str, replicas: int, decoder: str = "versioned", on_bad: str = "dlq"
+) -> None:
     kubectl("delete", "scaledobject/consumer", "--ignore-not-found")
-    kubectl("set", "env", "deploy/consumer", f"SINK={sink}", f"TOPIC={topic}", f"GROUP={group}")
+    kubectl(
+        "set", "env", "deploy/consumer",
+        f"SINK={sink}", f"TOPIC={topic}", f"GROUP={group}", f"DECODER={decoder}", f"ON_BAD={on_bad}",
+    )
     kubectl("scale", "deploy/consumer", f"--replicas={replicas}")
     kubectl("rollout", "status", "deploy/consumer", "--timeout=180s")
     time.sleep(8)  # let the group join and partitions get assigned
@@ -207,8 +244,26 @@ def collect_consumer_logs(out: Path) -> None:
                         f.write(json.dumps({"pod": pod, "container": container, **json.loads(line)}) + "\n")
 
 
+def consumer_restarts() -> int:
+    out = kubectl("get", "pods", "-l", "app=consumer", "-o", "jsonpath={.items[*].status.containerStatuses[0].restartCount}")
+    return sum(int(x) for x in out.split())
+
+
+def wait_for_stored(sampler: Sampler, target: int, timeout: float) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        rows = [r for r in sampler.rows if r["kind"] == "db"]
+        if rows and rows[-1]["stored"] >= target:
+            return True
+        time.sleep(1)
+    return False
+
+
 def run_experiment(name: str, results: Path) -> dict:
-    cfg = {"kill_at": None, "kill_mode": None, **EXPERIMENTS[name]}
+    cfg = {
+        "kill_at": None, "kill_mode": None, "decoder": "versioned", "on_bad": "dlq", "bad_rate": 0.0,
+        "v2_after": None, "expect": "sent", "drain_timeout": 420, "then": None, **EXPERIMENTS[name],
+    }
     out = results / name
     out.mkdir(parents=True, exist_ok=True)
     for old in out.glob("*"):
@@ -223,7 +278,9 @@ def run_experiment(name: str, results: Path) -> dict:
     set_postgres_cpu(cfg["pg_cpu"])
     ensure_database()
     kafkautil.create_topic(topic, PARTITIONS)
-    configure_consumers(cfg["sink"], topic, group, cfg["replicas"])
+    dlq_topic = f"{topic}.dlq"
+    kafkautil.ensure_topic(dlq_topic)
+    configure_consumers(cfg["sink"], topic, group, cfg["replicas"], cfg["decoder"], cfg["on_bad"])
     with db.connect(autocommit=True) as conn:
         conn.execute("TRUNCATE events, product_stats")
         conn.execute("VACUUM ANALYZE events")
@@ -239,9 +296,15 @@ def run_experiment(name: str, results: Path) -> dict:
         sampler.produced = n
 
     result: dict = {}
+    stats: dict = {}
     t0 = time.time()
     producer = threading.Thread(
-        target=lambda: result.update(sent=produce(topic, cfg["rate"], cfg["duration"], on_progress=on_progress))
+        target=lambda: result.update(
+            sent=produce(
+                topic, cfg["rate"], cfg["duration"], on_progress=on_progress,
+                bad_rate=cfg["bad_rate"], v2_after=cfg["v2_after"], stats=stats,
+            )
+        )
     )
     producer.start()
     killed = None
@@ -259,26 +322,35 @@ def run_experiment(name: str, results: Path) -> dict:
     sent = result["sent"]
     sampler.produced = sent
 
-    drained = False
-    while time.time() - t_end < 420:
-        rows = [r for r in sampler.rows if r["kind"] == "db"]
-        if rows and rows[-1]["stored"] >= sent:
-            drained = True
-            break
-        time.sleep(1)
+    target = sent if cfg["expect"] == "sent" else stats[cfg["expect"]]
+    drained = wait_for_stored(sampler, target, cfg["drain_timeout"])
     drain_end = time.time()
+    last_db = [r for r in sampler.rows if r["kind"] == "db"][-1]
+    phase_one = {"stored": last_db["stored"], "restarts": consumer_restarts(), "dlq": dlq.inspect(dlq_topic, idle_timeout=4)}
+
+    recovery = None
+    if cfg["then"]:
+        t_fix = time.time()
+        print(f"[{name}] phase 1: stored={phase_one['stored']} dlq={phase_one['dlq']['total']}; fixing consumer and redriving", flush=True)
+        configure_consumers(cfg["sink"], topic, group, cfg["replicas"], cfg["then"]["decoder"], cfg["on_bad"])
+        redriven = dlq.redrive(dlq_topic, topic, idle_timeout=4) if cfg["then"].get("redrive") else 0
+        recovered = wait_for_stored(sampler, stats["valid"], 120)
+        recovery = {"redriven": redriven, "recovered": recovered, "seconds": time.time() - t_fix}
+        drain_end = time.time()
     time.sleep(3)
     sampler.finish()
     collect_consumer_logs(out)
 
     validation = db.validate()
     summary = {
-        "experiment": name, **cfg, "topic": topic, "sent": sent,
+        "experiment": name, **cfg, "topic": topic, "sent": sent, "producer_stats": stats,
         "t0": t0, "produce_end": t_end, "drain_end": drain_end, "drained": drained,
-        "killed": killed, "validation": validation,
+        "killed": killed, "validation": validation, "phase_one": phase_one, "recovery": recovery,
+        "final_dlq": dlq.inspect(dlq_topic, idle_timeout=4), "restarts": consumer_restarts(),
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=2))
     kafkautil.delete_topic(topic)
+    kafkautil.delete_topic(dlq_topic)
     kubectl("delete", "scaledobject/consumer", "--ignore-not-found")
     print(f"[{name}] sent={sent} stored={validation['events']} drained={drained} "
           f"drain_time={drain_end - t_end:.0f}s mismatches={validation['mismatched_products']}", flush=True)

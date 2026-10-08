@@ -22,11 +22,21 @@ LABELS = {
     "pgcpu-full": "Postgres 2 CPU, 1 pod",
     "pgcpu-limited": "Postgres 0.05 CPU, 1 pod",
     "pgcpu-limited-keda": "Postgres 0.05 CPU, KEDA autoscaling",
+    "schema-strict-fail": "v2 schema, v1-only consumer, fail on bad event",
+    "schema-strict-dlq": "v2 schema, v1-only consumer, dead-letter topic, then fix and redrive",
+    "schema-versioned": "v2 schema, consumer understands v1 and v2",
+    "poison-fail": "0.2% malformed events, fail on bad event",
+    "poison-skip": "0.5% malformed events, log and skip",
+    "poison-dlq": "0.5% malformed events, dead-letter topic",
 }
+SCHEMA_RUNS = ["schema-strict-fail", "schema-strict-dlq", "schema-versioned"]
+POISON_RUNS = ["poison-fail", "poison-skip", "poison-dlq"]
 COLORS = {
     "pod-delete": "#2a9d8f", "pod-crash": "#d93f6b",
     "naive-fixed": "#d93f6b", "naive-keda": "#e9a23b", "batched-fixed": "#2a9d8f",
     "pgcpu-full": "#2a9d8f", "pgcpu-limited": "#d93f6b", "pgcpu-limited-keda": "#e9a23b",
+    "schema-strict-fail": "#d93f6b", "schema-strict-dlq": "#e9a23b", "schema-versioned": "#2a9d8f",
+    "poison-fail": "#d93f6b", "poison-skip": "#8d6bb8", "poison-dlq": "#2a9d8f",
 }
 
 
@@ -61,6 +71,10 @@ def load(folder: Path) -> dict:
     for row in _jsonl(folder / "consumer-logs.jsonl"):
         e2e[int(row["ts"] - t0)] = max(e2e[int(row["ts"] - t0)], row["e2e_p99_ms"])
 
+    stored_t = [r["ts"] - t0 for r in db_rows]
+    stored = [r["stored"] for r in db_rows]
+    produced = [r["produced"] for r in db_rows]
+
     produce_s = summary["produce_end"] - t0
     drain_s = max(0.0, summary["drain_end"] - summary["produce_end"])
     active = [i for i, tt in enumerate(t) if tt <= produce_s + drain_s + 1]
@@ -77,6 +91,7 @@ def load(folder: Path) -> dict:
         recovery = (after_peak[0] - kill_t) if after_peak else None
 
     return {
+        "stored_t": stored_t, "stored": stored, "produced": produced,
         "summary": summary, "t": t, "backlog": backlog, "fresh": fresh, "conns": conns,
         "kt": kt, "ready": ready, "cpu_t": cpu_t, "cpu_used": cpu_used, "cpu_throttled": cpu_throttled,
         "e2e_t": sorted(e2e), "e2e_p99": [e2e[s] / 1000 for s in sorted(e2e)],
@@ -142,6 +157,48 @@ def plot_group(runs: dict, names: list[str], results: Path, filename: str, title
     plt.close(fig)
 
 
+def plot_correctness(runs: dict, names: list[str], results: Path, filename: str, title: str) -> None:
+    names = [n for n in names if n in runs]
+    if not names:
+        return
+    fig, axes = plt.subplots(1, len(names), figsize=(5.2 * len(names), 4.6), constrained_layout=True, sharey=True)
+    axes = [axes] if len(names) == 1 else list(axes)
+    for ax, name in zip(axes, names):
+        r = runs[name]
+        ax.plot(r["stored_t"], r["produced"], color="#999999", linewidth=1.5, label="produced")
+        ax.plot(r["stored_t"], r["stored"], color=COLORS[name], linewidth=2.2, label="stored in Postgres")
+        _style(ax, LABELS[name], "events", r["produce_s"])
+        ax.title.set_fontsize(9)
+        ax.set_xlabel("seconds since producer start")
+    axes[0].legend(fontsize=8, loc="upper left")
+    fig.suptitle(title)
+    fig.savefig(results / filename, dpi=130)
+    plt.close(fig)
+
+
+def correctness_table(runs: dict, names: list[str]) -> list[str]:
+    lines = [
+        "| Scenario | Sent | Should be stored | Stored | In dead-letter topic | Missing | Consumer restarts |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for n in names:
+        if n not in runs:
+            continue
+        s = runs[n]["summary"]
+        stored = s["validation"]["events"]
+        dead = s["final_dlq"]["total"]
+        redriven = s["recovery"]["redriven"] if s.get("recovery") else 0
+        should = s["producer_stats"]["valid"]
+        # after a redrive the dead letters were stored too, so they are not "in" the topic as a loss
+        accounted = stored + (dead - redriven)
+        missing = s["sent"] - accounted
+        lines.append(
+            f"| {LABELS[n]} | {s['sent']:,} | {should:,} | {stored:,} | {dead:,}{' (all redriven)' if redriven else ''} | "
+            f"{missing:,} | {s['restarts']} |"
+        )
+    return lines
+
+
 def table(runs: dict, names: list[str], extra: bool = False) -> list[str]:
     head = (
         "| Scenario | Peak backlog | Max data staleness | Drain after producer stops | Max pods | Pod-seconds | "
@@ -187,6 +244,23 @@ def render(results: Path) -> None:
         if n in runs:
             out.append(f"- {LABELS[n]}: Postgres was CPU-throttled for {runs[n]['throttled_s']:.0f} s in total.")
     out += ["", "![postgres limits](postgres-limits.png)"]
+    plot_correctness(runs, SCHEMA_RUNS, results, "schema-change.png",
+                     "Producer deploys schema v2 at t=15 s (customer_id, occurred_at_ms, channel)")
+    plot_correctness(runs, POISON_RUNS, results, "malformed-events.png", "Malformed events: three ways to react")
+    if any(n in runs for n in SCHEMA_RUNS):
+        out += ["", "## Schema change (1,000 events/s for 45 s, producer switches to v2 at t=15 s)", ""]
+        out += correctness_table(runs, SCHEMA_RUNS) + ["", "![schema change](schema-change.png)"]
+        for n in SCHEMA_RUNS:
+            rec = runs.get(n, {}).get("summary", {}).get("recovery")
+            if rec:
+                out.append(f"- {LABELS[n]}: after the consumer was fixed, redriving {rec['redriven']:,} dead letters and "
+                           f"storing all events took {rec['seconds']:.0f} s (includes the consumer rollout).")
+    if any(n in runs for n in POISON_RUNS):
+        out += ["", "## Malformed events (1,000 events/s for 45 s)", ""]
+        out += correctness_table(runs, POISON_RUNS) + ["", "![malformed events](malformed-events.png)"]
+        for n in POISON_RUNS:
+            if n in runs and runs[n]["summary"]["final_dlq"]["total"]:
+                out.append(f"- {LABELS[n]}: dead letters by reason: {runs[n]['summary']['final_dlq']['by_reason']}")
     (results / "summary.md").write_text("\n".join(out) + "\n")
     print("\n".join(out))
 
