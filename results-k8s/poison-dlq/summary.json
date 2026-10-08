@@ -16,7 +16,7 @@
   "pg_cpu": "2",
   "rate": 1000,
   "duration": 45,
-  "topic": "beauty.events.poison-dlq.1791422452",
+  "topic": "beauty.events.poison-dlq.1791425863",
   "sent": 44998,
   "producer_stats": {
     "sent": 44998,
@@ -25,9 +25,9 @@
     "bad": 237,
     "v2": 0
   },
-  "t0": 1791422465.5278456,
-  "produce_end": 1791422510.53492,
-  "drain_end": 1791422512.5351596,
+  "t0": 1791425875.3205104,
+  "produce_end": 1791425920.3271704,
+  "drain_end": 1791425922.3274086,
   "drained": true,
   "killed": null,
   "validation": {
@@ -41,8 +41,8 @@
     "dlq": {
       "total": 237,
       "by_reason": {
-        "unsupported_version": 39,
         "invalid_json": 44,
+        "unsupported_version": 39,
         "unknown_event_type": 44,
         "missing_field:product_id": 38,
         "out_of_range:rating": 41,
@@ -54,8 +54,8 @@
   "final_dlq": {
     "total": 237,
     "by_reason": {
-      "unsupported_version": 39,
       "invalid_json": 44,
+      "unsupported_version": 39,
       "unknown_event_type": 44,
       "missing_field:product_id": 38,
       "out_of_range:rating": 41,

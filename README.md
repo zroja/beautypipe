@@ -4,7 +4,8 @@ A small, runnable reference pipeline for makeup / beauty product data, built to 
 **when a Kafka consumer falls behind, is it the stream or the sink?**
 
 Everything is Python (`confluent-kafka`, `psycopg`, `matplotlib`). There is no Java code to write or
-read. The Kafka-compatible broker (Redpanda in the Kubernetes setup) is just infrastructure.
+read. The broker is just infrastructure: Apache Kafka (managed by the Strimzi operator) in the Kubernetes setup, with
+Redpanda, a Kafka-compatible broker, used as a comparison and in `docker-compose.yml`.
 
 Experiments, in the order they are described below:
 
@@ -18,8 +19,9 @@ Experiments, in the order they are described below:
 5. **Real catalog data** ([Open Beauty Facts](#real-catalog-data-open-beauty-facts)): the product catalog can be
    real, not generated. The events are always synthetic.
 
-It backs the talk *"Blush, Batch, and Backpressure: Building Data Pipelines for Beauty Product
-Intelligence"* with numbers anyone can reproduce.
+It backs the talk *"Blush, Batch, and Backpressure: Why Autoscaling Won't Fix Your Lagging Consumer"* with numbers
+anyone can reproduce. The central finding: lag has several causes, and adding consumers fixes only one of them
+(a slow sink), not a starved database or a consumer stuck on a bad record.
 
 ## What it does
 
@@ -110,12 +112,16 @@ background consumer (see the docstring in `beautypipe/consumer.py`) fixed it, an
 
 ## Kubernetes experiments
 
-The same consumer runs as a Deployment on a kind cluster, with Redpanda and Postgres as pods, the catalog seed as a
-Kubernetes Job (and a suspended refresh CronJob), and [KEDA](https://keda.sh) (a CNCF project) scaling consumers
-on Kafka lag. The producer and all measurements run outside the consumers: the backlog is
-`events produced - events stored` (read from the database), data staleness is the age of the newest stored event,
-and Postgres CPU use and throttling come from its container cgroup. Raw samples are in [`results-k8s/`](results-k8s/)
-and the full tables in [`results-k8s/summary.md`](results-k8s/summary.md).
+The same consumer runs as a Deployment on a kind cluster, with Apache Kafka (deployed by the
+[Strimzi](https://strimzi.io) operator) and Postgres as pods, the catalog seed as a Kubernetes Job (and a suspended
+refresh CronJob), and [KEDA](https://keda.sh) scaling consumers on Kafka lag. Strimzi, KEDA and Kubernetes are CNCF
+projects. The producer and all measurements run outside the consumers: the backlog is `events produced - events stored`
+(read from the database), data staleness is the age of the newest stored event, and Postgres CPU use and throttling
+come from its container cgroup. Raw samples are in [`results-k8s/`](results-k8s/) and the full tables in
+[`results-k8s/summary.md`](results-k8s/summary.md).
+
+All numbers in sections 1 to 5 are from Apache Kafka 4.3.1 (KRaft, one node) under Strimzi 1.2.0. I ran the same
+experiments on Redpanda too; they are compared in [section 6](#6-do-the-results-hold-on-another-broker-redpanda).
 
 ### 1. What happens when a consumer pod dies?
 
@@ -125,8 +131,8 @@ Batched sink, 2,000 events/s, the consumer pod is killed at t=15 s.
 
 | Failure | Peak backlog | Max data staleness | Back to normal after | Events sent / stored | Rollup mismatches |
 |---|---:|---:|---:|---:|---:|
-| Graceful deletion (deploy, node drain) | 541 | 1.0 s | 2 s | 89,994 / 89,994 | 0 |
-| Hard crash (SIGKILL of the container) | 20,083 | 10.0 s | 11 s | 89,996 / 89,996 | 0 |
+| Graceful deletion (deploy, node drain) | 6,845 | 2.9 s | 5 s | 89,990 / 89,990 | 0 |
+| Hard crash (SIGKILL of the container) | 19,978 | 10.0 s | 11 s | 89,995 / 89,995 | 0 |
 
 - No events were lost or double counted in either case. Redelivered events are absorbed by the idempotent sink.
 - A crash is far more expensive than a graceful stop: the consumer never leaves the group, so Kafka waits for
@@ -141,13 +147,13 @@ Batched sink, 2,000 events/s, the consumer pod is killed at t=15 s.
 
 | Scenario | Peak backlog | Drain after producer stops | Max pods | Pod-seconds | Peak Postgres connections |
 |---|---:|---:|---:|---:|---:|
-| Per-event sink, 1 pod | 134,322 | 164 s | 1 | 226 | 1 |
-| Per-event sink, KEDA autoscaling | 33,813 | 7 s | 8 | 398 | 8 |
-| Batched sink, 1 pod | 548 | 2 s | 1 | 62 | 1 |
+| Per-event sink, 1 pod | 138,840 | 180 s | 1 | 242 | 1 |
+| Per-event sink, KEDA autoscaling | 42,261 | 10 s | 8 | 428 | 8 |
+| Batched sink, 1 pod | 556 | 2 s | 1 | 64 | 1 |
 
-- Autoscaling on lag **works**. It fixed the symptom, but it needed about 28 s to reach 8 pods (polling interval,
-  scale-up steps, pod start), so the backlog still peaked at about 34,000 events.
-- Fixing the sink is far cheaper: the batched single pod used about 6x fewer pod-seconds and 8x fewer database
+- Autoscaling on lag **works**. It fixed the symptom (drain from 180 s to 10 s), but the backlog still peaked at about
+  42,000 events while the new pods started.
+- Fixing the sink is far cheaper: the batched single pod used about 6.7x fewer pod-seconds and 8x fewer database
   connections than the autoscaled per-event consumers, and never built a backlog.
 
 ### 3. What if the database is the constrained resource?
@@ -158,13 +164,17 @@ Batched sink, 2,000 events/s, the consumer pod is killed at t=15 s.
 
 | Scenario | Peak backlog | Drain after producer stops | Max pods | Pod-seconds | Postgres CPU-throttled |
 |---|---:|---:|---:|---:|---:|
-| Postgres 2 CPU, 1 pod | 551 | 2 s | 1 | 48 | 0 s |
-| Postgres 0.05 CPU, 1 pod | 96,498 | 56 s | 1 | 102 | 60 s |
-| Postgres 0.05 CPU, KEDA autoscaling | 94,998 | 55 s | 5 | 370 | 111 s |
+| Postgres 2 CPU, 1 pod | 573 | 2 s | 1 | 48 | 0 s |
+| Postgres 0.05 CPU, 1 pod | 93,982 | 54 s | 1 | 100 | 65 s |
+| Postgres 0.05 CPU, KEDA autoscaling | 91,998 | 52 s | 6 | 364 | 119 s |
 
-- With a starved database the lag is real, but it is not a Kafka or consumer problem. KEDA saw the lag and added
-  consumers (5 pods, 3.6x the pod-seconds) with **no improvement** (55 s vs 56 s drain), and Postgres was throttled for
+- With a starved database the lag is real, but it is not a Kafka or consumer problem. KEDA saw the lag and scaled to
+  6 pods (3.6x the pod-seconds) with **no meaningful improvement** (52 s vs 54 s drain), and Postgres was throttled for
   almost twice as long. Scaling the consumers only moved more load onto the bottleneck.
+- **A Kubernetes side effect I did not expect:** at 0.05 CPU Postgres fails its readiness probe, its Service then has no
+  endpoints, and consumers started during that window crash with "connection refused" because they do not retry the
+  initial connection. The autoscaled run had 15 consumer restarts, and re-running that experiment reproduced it (16
+  restarts, 54 s drain). A production consumer should retry its first connection.
 - The batched sink is very cheap for Postgres: at 2 CPUs it used roughly 0.1 cores or less for 4,000 events/s.
 
 ### 4. What happens when the producer changes the schema?
@@ -178,17 +188,17 @@ sends what it cannot parse to a dead-letter topic (DLQ), and one that understand
 
 | Scenario | Sent | Stored | In the DLQ | Missing | Consumer restarts |
 |---|---:|---:|---:|---:|---:|
-| v1-only consumer, fail on a bad event | 44,995 | 14,930 | 0 | 30,065 stuck in Kafka | 3 |
-| v1-only consumer, dead-letter topic, then fix and redrive | 44,998 | 44,998 | 30,001 (all redriven) | 0 | 0 |
-| Consumer understands v1 and v2 | 44,998 | 44,998 | 0 | 0 | 0 |
+| v1-only consumer, fail on a bad event | 44,999 | 14,799 | 0 | 30,200 stuck in Kafka | 3 |
+| v1-only consumer, dead-letter topic, then fix and redrive | 44,997 | 44,997 | 29,999 (all redriven) | 0 | 0 |
+| Consumer understands v1 and v2 | 44,999 | 44,999 | 0 | 0 | 0 |
 
 - **Fail-fast stalls the whole pipeline**, including the v1 events that were fine. The consumer sits in a crash loop
   (Kubernetes restarts it with growing back-off) and the offset never moves past the first unreadable event. Nothing is
   lost, because Kafka still has it, but nothing is stored either, and the lag grows until someone intervenes.
-- **A dead-letter topic turns an outage into a backlog.** The v1 events kept flowing; the 30,001 v2 events were parked
+- **A dead-letter topic turns an outage into a backlog.** The v1 events kept flowing; the 29,999 v2 events were parked
   with headers saying why (`reason=schema_mismatch`, plus source topic, partition and offset). After rolling out a
-  consumer that understands v2, `python -m beautypipe.dlq redrive` republished them and all 44,998 events were stored
-  within 14 s (including the consumer rollout), with 0 rollup mismatches. Redriving is safe because the sink is
+  consumer that understands v2, `python -m beautypipe.dlq redrive` republished them and all 44,997 events were stored
+  within 17 s (including the consumer rollout), with 0 rollup mismatches. Redriving is safe because the sink is
   idempotent on `event_id`.
 - Understanding both versions (`beautypipe/schema.py`) is the real fix, and it needs no DLQ at all. This repo does not
   use a schema registry; a registry with compatibility rules would stop an incompatible v2 before it is published,
@@ -203,22 +213,22 @@ wrong type, rating out of range, unknown event type, unsupported schema version)
 
 | Scenario | Sent | Valid | Stored | In the DLQ | Missing | Consumer restarts |
 |---|---:|---:|---:|---:|---:|---:|
-| 0.2% bad, fail on a bad event | 44,995 | 44,883 | 1,800 | 0 | 43,195 stuck in Kafka | 4 |
-| 0.2% bad, fail on a bad event, KEDA autoscaling | 44,998 | 44,886 | 2,330 | 0 | 42,668 stuck in Kafka | 26 |
-| 0.5% bad, log and skip | 44,999 | 44,762 | 44,762 | 0 | 237 silently dropped | 0 |
+| 0.2% bad, fail on a bad event | 44,995 | 44,883 | 2,316 | 0 | 42,679 stuck in Kafka | 4 |
+| 0.2% bad, fail on a bad event, KEDA autoscaling | 44,998 | 44,886 | 3,435 | 0 | 41,563 stuck in Kafka | 24 |
+| 0.5% bad, log and skip | 44,997 | 44,760 | 44,760 | 0 | 237 silently dropped | 0 |
 | 0.5% bad, dead-letter topic | 44,998 | 44,761 | 44,761 | 237 | 0 | 0 |
 
-- **A single poison pill stops a partition for good**: with fail-fast the consumer stored only 1,800 of 44,883 valid
+- **A single poison pill stops a partition for good**: with fail-fast the consumer stored only 2,316 of 44,883 valid
   events before the first bad one blocked it, and was still crash-looping when the run ended.
 - **Autoscaling does not unblock a stuck partition.** The same fail-fast consumer with KEDA scaling on lag requested 8
-  pods and restarted 26 times, and stored 2,330 of 44,886 valid events (5%) against 1,800 without it. Kafka lets only one
-  consumer read a partition, and every partition contained a bad event, so more pods had nothing to take over. (Pods
-  were crash-looping, so they were rarely ready at the same time.)
+  pods and restarted 24 times, and stored 3,435 of 44,886 valid events (8%) against 2,316 without it. Kafka lets only one
+  consumer read a partition, and every partition contained a bad event, so more pods had nothing to take over.
 - **Skipping looks healthy and loses data.** Lag was 0, the dashboard was green, and 237 events were gone. The only
   way to notice is to reconcile what was sent against what was stored, which is how this repo checks every run.
 - **The DLQ kept everything**: stored + dead-lettered equals sent, and the headers say why each one was rejected
   (`invalid_json` 44, `unknown_event_type` 44, `out_of_range:rating` 41, `unsupported_version` 39,
-  `missing_field:product_id` 38, `wrong_type:product_id` 31).
+  `missing_field:product_id` 38, `wrong_type:product_id` 31). Malformed events are not redriven: they stay in the DLQ with
+  their reason for a person to inspect. Only the schema-change events (section 4) could be stored after a fix.
 
 Limits of these two experiments: one consumer pod, one run each, a fail-fast consumer that restarts from its last
 commit (so it also re-reads the good events of the batch that contained the bad one), and a DLQ that is a single-partition
@@ -226,65 +236,58 @@ topic with no retention policy or alerting. A production DLQ needs an alert on i
 The DLQ publish is flushed before offsets are committed, so a crash in between can produce duplicate dead letters;
 `beautypipe.dlq` deduplicates them by source partition and offset.
 
-### 6. Do the results hold on Apache Kafka managed by Strimzi?
+### 6. Do the results hold on another broker (Redpanda)?
 
-All of the above was run on Redpanda, a Kafka-compatible broker from a vendor. I repeated every Kubernetes experiment on
-**Apache Kafka 4.3.1 (KRaft) deployed by the [Strimzi](https://strimzi.io) operator 1.2.0** (a CNCF project), with the
-same consumer code, the same producer and the same harness; only the bootstrap address differs. Results are in
-[`results-k8s-strimzi/`](results-k8s-strimzi/summary.md), side by side with the Redpanda runs in
-[`comparison.md`](results-k8s-strimzi/comparison.md). Set it up with `scripts/k8s-up.sh && scripts/k8s-strimzi-up.sh`, then
-`python -m beautypipe.k8s_bench --broker strimzi`.
+To check that nothing above depends on the broker, I repeated every experiment on **Redpanda v25.2.3**, a Kafka-compatible
+broker (source-available, not Apache-licensed), with the same consumer code, producer and harness; only the bootstrap
+address differs. Results are in [`results-k8s-redpanda/`](results-k8s-redpanda/summary.md), side by side in
+[`comparison.md`](results-k8s/comparison.md). Switch brokers with `BROKER=redpanda scripts/k8s-up.sh`, then
+`python -m beautypipe.k8s_bench --broker redpanda`.
 
-| Experiment | Redpanda | Apache Kafka on Strimzi |
+| Experiment | Apache Kafka on Strimzi | Redpanda |
 |---|---|---|
-| Per-event sink, 1 pod, 3,000/s: peak backlog, drain | 134,322, 164 s | 138,840, 180 s |
-| Per-event sink, KEDA: peak backlog, drain, pods, pod-seconds | 33,813, 7 s, 8, 398 | 42,261, 10 s, 8, 428 |
-| Batched sink, 1 pod: peak backlog, pod-seconds | 548, 62 | 556, 64 |
-| Postgres 0.05 CPU, 1 pod: drain | 56 s | 54 s |
-| Postgres 0.05 CPU, KEDA: drain, pods, pod-seconds | 55 s, 5, 370 | 52 s, 6, 364 |
-| Hard crash: peak backlog, back under 1,000 after | 20,083, 11 s | 19,978, 11 s |
-| Graceful pod deletion: peak backlog, back under 1,000 after | 541, 2 s | 6,845, 5 s |
-| Schema v2, v1-only consumer, fail-fast: stored | 14,930 of 44,995 | 14,799 of 44,999 |
-| Schema v2, v1-only consumer, DLQ then redrive: stored | 44,998 of 44,998 | 44,997 of 44,997 |
-| 0.2% malformed, fail-fast: stored (valid events 44,883) | 1,800 | 2,316 |
-| 0.2% malformed, fail-fast + KEDA: stored | 2,330 | 3,435 |
+| Per-event sink, 1 pod, 3,000/s: peak backlog, drain | 138,840, 180 s | 134,322, 164 s |
+| Per-event sink, KEDA: peak backlog, drain, pods, pod-seconds | 42,261, 10 s, 8, 428 | 33,813, 7 s, 8, 398 |
+| Batched sink, 1 pod: peak backlog, pod-seconds | 556, 64 | 548, 62 |
+| Postgres 0.05 CPU, 1 pod: drain | 54 s | 56 s |
+| Postgres 0.05 CPU, KEDA: drain, pods, pod-seconds | 52 s, 6, 364 | 55 s, 5, 370 |
+| Hard crash: peak backlog, back under 1,000 after | 19,978, 11 s | 20,083, 11 s |
+| Graceful pod deletion: peak backlog, back under 1,000 after | 6,845, 5 s | 541, 2 s |
+| Schema v2, v1-only consumer, fail-fast: stored | 14,799 of 44,999 | 14,930 of 44,995 |
+| Schema v2, v1-only consumer, DLQ then redrive: stored | 44,997 of 44,997 | 44,998 of 44,998 |
+| 0.2% malformed, fail-fast: stored (valid events about 44,883) | 2,316 | 1,800 |
+| 0.2% malformed, fail-fast + KEDA: stored | 3,435 | 2,330 |
 | 0.5% malformed: skip loses / DLQ loses | 237 / 0 | 237 / 0 |
 
-- **Every conclusion held.** Per-event sink: autoscaling fixed the symptom at about 6.7x the pod-seconds of the
-  batched sink's single pod (428 vs 64). Starved Postgres: autoscaling did not help (52 s vs 54 s drain). A crash cost one
-  session timeout (11 s on both). Fail-fast stalled on both schema change and bad events, and KEDA
-  scaling to 8 pods stored only 3,435 of 44,886 valid events. Skipping dropped 237 events silently on both; the DLQ lost none.
-  Rollup mismatches were 0 in every run on both brokers.
+- **Every conclusion held on both brokers**, and rollup mismatches were 0 in every run on both.
 - **One difference I did not expect and did not investigate**: graceful pod deletion produced a peak backlog of 6,845
   events on Kafka against 541 on Redpanda (5 s to recover against 2 s). It is one run on each, and the cause could be
   the group coordinator, the broker, or run-to-run noise; I would not claim it is a property of either broker.
 - Small differences (for example KEDA's peak backlog of 42,261 against 33,813) are within what I would expect from one run
   on a shared VM.
-- **A finding about the harness, not the broker**: in the starved-Postgres runs with KEDA, consumers restarted 15 to 16
-  times. At 0.05 CPU Postgres fails its readiness probe, its Service then has no endpoints, and consumers started during that
-  window crash on "connection refused" because they do not retry the initial connection. Re-running that
-  experiment reproduced it (16 restarts, 54 s drain). The Redpanda runs of the same experiment did not record restarts, so I
-  cannot say whether it happened there too. A production consumer should retry its connection.
+- The Redpanda runs of the starved-Postgres experiment did not record consumer restarts, so I cannot say whether the
+  readiness-probe crash described in section 3 also happened there.
 - Limits: a single Kafka node (no replication, ephemeral storage, 768 MB heap) against a single Redpanda node, so this
-  compares behaviour of the pipeline, not the brokers' performance or Strimzi's high-availability features. Redpanda was
-  removed from the cluster while Kafka ran (both use host port 31092 and the VM is small).
+  compares behaviour of the pipeline, not the brokers' performance or Strimzi's high-availability features. Only one
+  broker ran in the cluster at a time (both use host port 31092 and the VM is small).
 
 ### Honest limitations and things that went wrong
 
-- Everything runs on one 4 vCPU VM in a single-node kind cluster, so the producer, Redpanda, Postgres and consumers
-  share CPU. One run per scenario. The order-of-magnitude differences matter; small ones are noise.
+- Everything runs on one 4 vCPU VM in a single-node kind cluster with a single Kafka broker, so the producer, broker,
+  Postgres and consumers share CPU. One run per scenario. The order-of-magnitude differences matter; small ones are noise.
 - "Constrained storage" here means a **CPU limit on the Postgres pod**. The data directory is an `emptyDir`, so disk IOPS
   are not limited. The 0.05 CPU limit is deliberately extreme. A first attempt with 0.25 CPU did not bind at all
   (the batched sink only needs about 0.1 cores at this rate), so I lowered it.
 - Pod-seconds are estimated from 2-second samples of ready pods.
-- Sections 1 to 5 were measured on Redpanda (Kafka protocol). Section 6 repeats them on Apache Kafka with the
-  [Strimzi](https://strimzi.io) operator; the consumer code did not change.
+- Sections 1 to 5 were measured on Apache Kafka under Strimzi. Section 6 repeats them on Redpanda; the consumer code
+  did not change between brokers.
 - Pitfalls hit while building this, which are good talk material:
   - `kubectl delete pod --force` still sends SIGTERM, and a consumer that handles it leaves the group cleanly, so the
     first "crash" test showed no failure at all. A real crash needed SIGKILL via the container runtime.
-  - KEDA runs in its own namespace. With the broker advertising the short name `redpanda`, KEDA could not reach it,
-    **so it never scaled and silently looked like "autoscaling does not help"**. The broker must advertise a name that
-    resolves from every namespace (`redpanda.default.svc.cluster.local`).
+  - KEDA runs in its own namespace. In my first Redpanda setup the broker advertised the short name `redpanda`, so KEDA
+    could not reach it, **never scaled, and silently looked like "autoscaling does not help"**. The broker must advertise
+    a name that resolves from every namespace (`redpanda.default.svc.cluster.local`), and KEDA needs the fully qualified
+    bootstrap address. Both setups now use fully qualified names, and KEDA scaled in every run that enabled it.
   - Some minimal kernels lack the netfilter `statistic` module that kube-proxy needs for Services with more than one
     backend, which breaks every Service. `scripts/k8s-up.sh` runs CoreDNS with one replica to avoid it.
 
@@ -293,13 +296,16 @@ same consumer code, the same producer and the same harness; only the bootstrap a
 Requirements: Docker, [kind](https://kind.sigs.k8s.io), kubectl, helm.
 
 ```bash
-scripts/k8s-up.sh                          # kind cluster, Redpanda, Postgres, KEDA, catalog seed Job
+scripts/k8s-up.sh                          # kind cluster, Apache Kafka on Strimzi, Postgres, KEDA, catalog seed Job
 python -m beautypipe.k8s_bench --list      # the experiments
 python -m beautypipe.k8s_bench             # all of them, about 40 minutes -> results-k8s/
 python -m beautypipe.k8s_report            # charts + results-k8s/summary.md
-scripts/k8s-strimzi-up.sh                  # optional: swap Redpanda for Apache Kafka on Strimzi
-python -m beautypipe.k8s_bench --broker strimzi   # -> results-k8s-strimzi/
-python -m beautypipe.k8s_report --results results-k8s-strimzi
+
+BROKER=redpanda scripts/k8s-up.sh          # optional: swap in Redpanda for the comparison
+python -m beautypipe.k8s_bench --broker redpanda   # -> results-k8s-redpanda/
+python -m beautypipe.k8s_report --results results-k8s-redpanda
+python -m beautypipe.compare_brokers       # side-by-side table -> results-k8s/comparison.md
+
 kind delete cluster --name beautypipe      # tear down
 ```
 
@@ -437,9 +443,8 @@ python -m beautypipe.consumer --topic beauty.events --sink parquet              
 | `beautypipe/bench.py` | Runs scenarios, validates, runs the replay check |
 | `beautypipe/report.py` | Charts and markdown summary |
 | `beautypipe/k8s_bench.py`, `k8s_report.py` | Kubernetes experiments and their charts |
-| `k8s/` | Manifests: Redpanda, Postgres, consumer Deployment, batch Job/CronJob, KEDA ScaledObject, kind config |
-| `scripts/k8s-up.sh` | Builds and loads images, creates the cluster, installs KEDA |
-| `scripts/k8s-strimzi-up.sh`, `k8s/strimzi-kafka.yaml` | Swaps Redpanda for Apache Kafka managed by Strimzi |
+| `k8s/` | Manifests: Strimzi Kafka, Redpanda, Postgres, consumer Deployment, batch Job/CronJob, KEDA ScaledObject, kind config |
+| `scripts/k8s-up.sh` | Builds and loads images, creates the cluster, installs KEDA and the broker (Strimzi Kafka by default, `BROKER=redpanda` for Redpanda) |
 | `beautypipe/compare_brokers.py` | Side-by-side table of the two brokers' results |
 | `Dockerfile` | Image used by the consumer, producer and batch pods |
 | `tests/` | Normalization, schema decoding, event determinism, sink idempotency and Parquet sink tests |
@@ -448,15 +453,13 @@ python -m beautypipe.consumer --topic beauty.events --sink parquet              
 
 | Talk section | Where to look |
 |---|---|
-| Messy beauty data | `catalog.py`, `normalize.py`, `tests/test_normalize.py` |
-| Batch plus streaming architecture | `batchjob.py`, `consumer.py`, diagram above |
-| Diagnosis: lag vs throughput vs sink latency | `results/overview.png`, `consumer.py` metrics |
-| Idempotency and replay | `sinks.py`, `bench.py` replay check, `tests/test_events_and_sinks.py` |
-| Storage and bottlenecks | `sinks.py` naive vs batched, results table |
-| Kubernetes: scaling, failure, backpressure | `k8s/`, `k8s_bench.py`, [Kubernetes experiments](#kubernetes-experiments) |
-| Schema evolution, bad records, dead letters | `schema.py`, `dlq.py`, [experiments 4 and 5](#4-what-happens-when-the-producer-changes-the-schema) |
-| Storage formats | `parquet_sink.py`, `storage_bench.py`, [Postgres vs Parquet + DuckDB](#storage-format-postgres-vs-parquet--duckdb) |
-| Real data | `obf.py`, [Open Beauty Facts](#real-catalog-data-open-beauty-facts) |
+| The setup: messy beauty data, the event stream | `catalog.py`, `normalize.py`, `tests/test_normalize.py`, diagram above |
+| Measuring lag honestly (outside the consumer) | `consumer.py` metrics, `k8s_bench.py` sampler, [A measurement lesson](#a-measurement-lesson-worth-telling-in-the-talk) |
+| Cause 1, slow sink | `sinks.py` naive vs batched, [section 2](#2-scale-out-the-consumers-or-fix-the-sink) |
+| Cause 2, starved database | [section 3](#3-what-if-the-database-is-the-constrained-resource) |
+| Cause 3, stuck on a bad record | `schema.py`, `dlq.py`, [sections 4 and 5](#4-what-happens-when-the-producer-changes-the-schema) |
+| Idempotency as the safety net | `sinks.py`, `bench.py` replay check, `tests/test_events_and_sinks.py`, [section 1](#1-what-happens-when-a-consumer-pod-dies) |
+| Extras not in the talk | [Storage formats](#storage-format-postgres-vs-parquet--duckdb), [Open Beauty Facts](#real-catalog-data-open-beauty-facts), [second broker](#6-do-the-results-hold-on-another-broker-redpanda) |
 
 ## License
 

@@ -1,0 +1,24 @@
+{
+  "experiment": "naive-fixed",
+  "kill_at": null,
+  "kill_mode": null,
+  "question": "Per-event sink, 1 consumer pod, 3,000 events/s",
+  "sink": "pg-naive",
+  "replicas": 1,
+  "keda": false,
+  "pg_cpu": "2",
+  "rate": 3000,
+  "duration": 60,
+  "topic": "beauty.events.naive-fixed.1791338067",
+  "sent": 179992,
+  "t0": 1791338079.156551,
+  "produce_end": 1791338139.161837,
+  "drain_end": 1791338303.1836083,
+  "drained": true,
+  "killed": null,
+  "validation": {
+    "events": 179992,
+    "stats_total": 179992,
+    "mismatched_products": 0
+  }
+}

@@ -4,7 +4,7 @@
     python -m beautypipe.k8s_bench --experiments pod-kill
     python -m beautypipe.k8s_bench                    # everything
 
-The producer and the sampler run on the host and reach Redpanda and Postgres through NodePorts.
+The producer and the sampler run on the host and reach the broker and Postgres through NodePorts.
 The consumers run as a Deployment inside the cluster. Metrics are taken from outside the
 consumers (Postgres statistics, kubectl, Postgres container cgroup) so that measuring never
 slows the pipeline down. Per-window consumer metrics are read back from the pod logs.
@@ -32,7 +32,7 @@ BROKERS = {
         label="Apache Kafka 4.3.1 (KRaft) on Strimzi 1.2.0",
     ),
 }
-BROKER = {"name": "redpanda"}
+BROKER = {"name": "strimzi"}
 
 K8S_DIR = Path(__file__).resolve().parent.parent / "k8s"
 PARTITIONS = 8
@@ -380,8 +380,8 @@ def run_experiment(name: str, results: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--experiments", default=",".join(EXPERIMENTS))
-    parser.add_argument("--broker", choices=sorted(BROKERS), default="redpanda", help="which broker the cluster runs")
-    parser.add_argument("--out", default=None, help="default: results-k8s (redpanda) or results-k8s-<broker>")
+    parser.add_argument("--broker", choices=sorted(BROKERS), default="strimzi", help="which broker the cluster runs (scripts/k8s-up.sh sets it up)")
+    parser.add_argument("--out", default=None, help="default: results-k8s (strimzi) or results-k8s-redpanda")
     parser.add_argument("--list", action="store_true")
     args = parser.parse_args()
     if args.list:
@@ -392,7 +392,7 @@ def main() -> None:
     os.environ.setdefault("KAFKA_BOOTSTRAP", "localhost:31092")
     os.environ.setdefault("DATABASE_URL", "postgresql://beauty:beauty@localhost:30432/beauty")
     BROKER["name"] = args.broker
-    results = Path(args.out or ("results-k8s" if args.broker == "redpanda" else f"results-k8s-{args.broker}"))
+    results = Path(args.out or ("results-k8s" if args.broker == "strimzi" else f"results-k8s-{args.broker}"))
     for name in args.experiments.split(","):
         run_experiment(name.strip(), results)
     (results / "run_config.json").write_text(json.dumps({"broker": BROKERS[args.broker]["label"], "partitions": PARTITIONS, "num_products": config.num_products(), "catalog": config.catalog_source()}, indent=2))

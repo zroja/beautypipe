@@ -16,27 +16,27 @@
   "pg_cpu": "2",
   "rate": 1000,
   "duration": 45,
-  "topic": "beauty.events.poison-skip.1791422382",
-  "sent": 44999,
+  "topic": "beauty.events.poison-skip.1791425792",
+  "sent": 44997,
   "producer_stats": {
-    "sent": 44999,
-    "valid": 44762,
-    "v1_valid": 44762,
+    "sent": 44997,
+    "valid": 44760,
+    "v1_valid": 44760,
     "bad": 237,
     "v2": 0
   },
-  "t0": 1791422394.3718958,
-  "produce_end": 1791422439.3792422,
-  "drain_end": 1791422441.3794754,
+  "t0": 1791425805.1729355,
+  "produce_end": 1791425850.1790175,
+  "drain_end": 1791425852.1792972,
   "drained": true,
   "killed": null,
   "validation": {
-    "events": 44762,
-    "stats_total": 44762,
+    "events": 44760,
+    "stats_total": 44760,
     "mismatched_products": 0
   },
   "phase_one": {
-    "stored": 44762,
+    "stored": 44760,
     "restarts": 0,
     "dlq": {
       "total": 0,

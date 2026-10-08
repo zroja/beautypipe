@@ -1,6 +1,6 @@
 """Side-by-side table of the Kubernetes experiments on two brokers.
 
-    python -m beautypipe.compare_brokers --a results-k8s --b results-k8s-strimzi
+    python -m beautypipe.compare_brokers --a results-k8s --b results-k8s-redpanda
 """
 
 import argparse
@@ -24,11 +24,11 @@ def _row(runs: dict, name: str) -> dict | None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--a", default="results-k8s")
-    parser.add_argument("--b", default="results-k8s-strimzi")
+    parser.add_argument("--a", default="results-k8s", help="primary results (Apache Kafka on Strimzi)")
+    parser.add_argument("--b", default="results-k8s-redpanda", help="comparison results (Redpanda)")
     args = parser.parse_args()
     folders = [Path(args.a), Path(args.b)]
-    names = [json.loads((f / "run_config.json").read_text()).get("broker", "Redpanda v25.2.3") for f in folders]
+    names = [json.loads((f / "run_config.json").read_text()).get("broker", "unknown broker") for f in folders]
     runs = [{n: load(f / n) for n in LABELS if (f / n / "summary.json").exists()} for f in folders]
 
     def cell(row: dict | None) -> str:
@@ -65,7 +65,7 @@ def main() -> None:
         if a is None and b is None:
             continue
         lines.append(f"| {LABELS[name]} | {outcome(a)} | {outcome(b)} |")
-    out = folders[1] / "comparison.md"
+    out = folders[0] / "comparison.md"
     out.write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
 

@@ -2,6 +2,13 @@
   "experiment": "naive-fixed",
   "kill_at": null,
   "kill_mode": null,
+  "decoder": "versioned",
+  "on_bad": "dlq",
+  "bad_rate": 0.0,
+  "v2_after": null,
+  "expect": "sent",
+  "drain_timeout": 420,
+  "then": null,
   "question": "Per-event sink, 1 consumer pod, 3,000 events/s",
   "sink": "pg-naive",
   "replicas": 1,
@@ -9,16 +16,37 @@
   "pg_cpu": "2",
   "rate": 3000,
   "duration": 60,
-  "topic": "beauty.events.naive-fixed.1791338067",
-  "sent": 179992,
-  "t0": 1791338079.156551,
-  "produce_end": 1791338139.161837,
-  "drain_end": 1791338303.1836083,
+  "topic": "beauty.events.naive-fixed.1791424490",
+  "sent": 179986,
+  "producer_stats": {
+    "sent": 179986,
+    "valid": 179986,
+    "v1_valid": 179986,
+    "bad": 0,
+    "v2": 0
+  },
+  "t0": 1791424501.8522944,
+  "produce_end": 1791424561.8559988,
+  "drain_end": 1791424741.8797193,
   "drained": true,
   "killed": null,
   "validation": {
-    "events": 179992,
-    "stats_total": 179992,
+    "events": 179986,
+    "stats_total": 179986,
     "mismatched_products": 0
-  }
+  },
+  "phase_one": {
+    "stored": 179986,
+    "restarts": 0,
+    "dlq": {
+      "total": 0,
+      "by_reason": {}
+    }
+  },
+  "recovery": null,
+  "final_dlq": {
+    "total": 0,
+    "by_reason": {}
+  },
+  "restarts": 0
 }

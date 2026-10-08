@@ -19,44 +19,44 @@
   "pg_cpu": "2",
   "rate": 1000,
   "duration": 45,
-  "topic": "beauty.events.schema-strict-dlq.1791422112",
-  "sent": 44998,
+  "topic": "beauty.events.schema-strict-dlq.1791425399",
+  "sent": 44997,
   "producer_stats": {
-    "sent": 44998,
-    "valid": 44998,
-    "v1_valid": 14997,
+    "sent": 44997,
+    "valid": 44997,
+    "v1_valid": 14998,
     "bad": 0,
-    "v2": 30001
+    "v2": 29999
   },
-  "t0": 1791422125.8623326,
-  "produce_end": 1791422170.8687418,
-  "drain_end": 1791422189.7851672,
+  "t0": 1791425411.0818515,
+  "produce_end": 1791425456.0872972,
+  "drain_end": 1791425481.3331628,
   "drained": true,
   "killed": null,
   "validation": {
-    "events": 44998,
-    "stats_total": 44998,
+    "events": 44997,
+    "stats_total": 44997,
     "mismatched_products": 0
   },
   "phase_one": {
-    "stored": 14997,
+    "stored": 14998,
     "restarts": 0,
     "dlq": {
-      "total": 30001,
+      "total": 29999,
       "by_reason": {
-        "schema_mismatch": 30001
+        "schema_mismatch": 29999
       }
     }
   },
   "recovery": {
-    "redriven": 30001,
+    "redriven": 29999,
     "recovered": true,
-    "seconds": 13.980958461761475
+    "seconds": 17.233630895614624
   },
   "final_dlq": {
-    "total": 30001,
+    "total": 29999,
     "by_reason": {
-      "schema_mismatch": 30001
+      "schema_mismatch": 29999
     }
   },
   "restarts": 0

@@ -1,4 +1,5 @@
 {
+  "broker": "Apache Kafka 4.3.1 (KRaft) on Strimzi 1.2.0",
   "partitions": 8,
   "num_products": 5000,
   "catalog": "synthetic"

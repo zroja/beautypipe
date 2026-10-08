@@ -1,0 +1,27 @@
+{
+  "experiment": "pod-crash",
+  "kill_at": 15,
+  "kill_mode": "crash",
+  "question": "Hard crash (SIGKILL) of the consumer container: any loss or double counting?",
+  "sink": "pg-batched",
+  "replicas": 1,
+  "keda": false,
+  "pg_cpu": "2",
+  "rate": 2000,
+  "duration": 45,
+  "topic": "beauty.events.pod-crash.1791338005",
+  "sent": 89996,
+  "t0": 1791338017.0305507,
+  "produce_end": 1791338062.0359514,
+  "drain_end": 1791338064.0361648,
+  "drained": true,
+  "killed": {
+    "pod": "consumer-7f96884587-dbqm9",
+    "at": 1791338032.075778
+  },
+  "validation": {
+    "events": 89996,
+    "stats_total": 89996,
+    "mismatched_products": 0
+  }
+}

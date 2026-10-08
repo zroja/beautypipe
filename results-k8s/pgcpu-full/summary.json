@@ -2,6 +2,13 @@
   "experiment": "pgcpu-full",
   "kill_at": null,
   "kill_mode": null,
+  "decoder": "versioned",
+  "on_bad": "dlq",
+  "bad_rate": 0.0,
+  "v2_after": null,
+  "expect": "sent",
+  "drain_timeout": 420,
+  "then": null,
   "question": "Batched sink, Postgres with 2 CPUs, 1 consumer, 4,000 events/s",
   "sink": "pg-batched",
   "replicas": 1,
@@ -9,16 +16,37 @@
   "pg_cpu": "2",
   "rate": 4000,
   "duration": 45,
-  "topic": "beauty.events.pgcpu-full.1791338607",
-  "sent": 179995,
-  "t0": 1791338619.2006695,
-  "produce_end": 1791338664.2074654,
-  "drain_end": 1791338666.2078054,
+  "topic": "beauty.events.pgcpu-full.1791424936",
+  "sent": 179985,
+  "producer_stats": {
+    "sent": 179985,
+    "valid": 179985,
+    "v1_valid": 179985,
+    "bad": 0,
+    "v2": 0
+  },
+  "t0": 1791424947.8914795,
+  "produce_end": 1791424992.8965921,
+  "drain_end": 1791424994.896919,
   "drained": true,
   "killed": null,
   "validation": {
-    "events": 179995,
-    "stats_total": 179995,
+    "events": 179985,
+    "stats_total": 179985,
     "mismatched_products": 0
-  }
+  },
+  "phase_one": {
+    "stored": 179985,
+    "restarts": 0,
+    "dlq": {
+      "total": 0,
+      "by_reason": {}
+    }
+  },
+  "recovery": null,
+  "final_dlq": {
+    "total": 0,
+    "by_reason": {}
+  },
+  "restarts": 0
 }

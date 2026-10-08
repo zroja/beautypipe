@@ -1,0 +1,24 @@
+{
+  "experiment": "pgcpu-full",
+  "kill_at": null,
+  "kill_mode": null,
+  "question": "Batched sink, Postgres with 2 CPUs, 1 consumer, 4,000 events/s",
+  "sink": "pg-batched",
+  "replicas": 1,
+  "keda": false,
+  "pg_cpu": "2",
+  "rate": 4000,
+  "duration": 45,
+  "topic": "beauty.events.pgcpu-full.1791338607",
+  "sent": 179995,
+  "t0": 1791338619.2006695,
+  "produce_end": 1791338664.2074654,
+  "drain_end": 1791338666.2078054,
+  "drained": true,
+  "killed": null,
+  "validation": {
+    "events": 179995,
+    "stats_total": 179995,
+    "mismatched_products": 0
+  }
+}
