@@ -6,11 +6,17 @@ A small, runnable reference pipeline for makeup / beauty product data, built to 
 Everything is Python (`confluent-kafka`, `psycopg`, `matplotlib`). There is no Java code to write or
 read. The Kafka-compatible broker (Redpanda in the Kubernetes setup) is just infrastructure.
 
-Two layers of experiments:
+Experiments, in the order they are described below:
 
 1. **Single machine** ([Results](#results)): same consumer, different sinks. Is it the stream or the sink?
 2. **Kubernetes** ([Kubernetes experiments](#kubernetes-experiments)): pod failures, KEDA autoscaling on Kafka lag,
    and a resource-limited Postgres pod.
+3. **Schema changes and malformed records** ([section 4 and 5](#4-what-happens-when-the-producer-changes-the-schema)):
+   a producer deploys a new schema version, and bad events arrive. Crash loop, silent loss, or dead-letter topic?
+4. **Storage format** ([Postgres vs Parquet + DuckDB](#storage-format-postgres-vs-parquet--duckdb)): the same
+   2 million events in a row store and in a columnar format, ingest cost, disk, and which queries each one wins.
+5. **Real catalog data** ([Open Beauty Facts](#real-catalog-data-open-beauty-facts)): the product catalog can be
+   real, not generated. The events are always synthetic.
 
 It backs the talk *"Blush, Batch, and Backpressure: Building Data Pipelines for Beauty Product
 Intelligence"* with numbers anyone can reproduce.
@@ -29,10 +35,14 @@ producer ──► Kafka topic (4 partitions, keyed by product) ──► consum
 - **Messy catalog**: 5,000 products and 30,000 shades written the way retailers really write them
   (`Ruby Woo`, `RUBY-WOO 01`, `Rubý Woo #3`, `No. 12 Ruby Woo (Matte)`). The batch job collapses these into
   canonical keys (`beautypipe/normalize.py`).
-- **Three sinks**, same consumer, same data:
+- **Real catalog option**: `CATALOG=obf` swaps the generated catalog for 1,126 real makeup products from Open Beauty
+  Facts, with their ingredient lists ([details and limits](#real-catalog-data-open-beauty-facts)). All results in the
+  Results and Kubernetes sections below were measured with the default synthetic catalog.
+- **Four sinks**, same consumer, same data:
   - `blackhole`: does nothing. The ceiling for Kafka plus Python deserialization alone.
   - `pg-naive`: one transaction per event (insert, bump rollup row, commit). How first versions are usually written.
   - `pg-batched`: one set-based statement and one commit per poll.
+  - `parquet`: one Parquet file per poll, read with DuckDB ([trade-offs](#storage-format-postgres-vs-parquet--duckdb)).
 - **Idempotent by design**: events are inserted with `ON CONFLICT DO NOTHING`, and the per-product rollup is only
   incremented for rows that were actually inserted. Redelivery and full replays cannot double count.
 - **Instrumented consumer**: per-second lag, throughput, sink call latency and end-to-end latency.
@@ -157,6 +167,60 @@ Batched sink, 2,000 events/s, the consumer pod is killed at t=15 s.
   almost twice as long. Scaling the consumers only moved more load onto the bottleneck.
 - The batched sink is very cheap for Postgres: at 2 CPUs it used roughly 0.1 cores or less for 4,000 events/s.
 
+### 4. What happens when the producer changes the schema?
+
+1,000 events/s for 45 s. At t=15 s the producer starts publishing **schema v2**, which renames two fields
+(`user_id` to `customer_id`, `produced_at_ms` to `occurred_at_ms`) and adds one (`channel`). Two thirds of the events
+are v2. Three consumers: one that only knows v1 and treats anything else as fatal, one that only knows v1 but
+sends what it cannot parse to a dead-letter topic (DLQ), and one that understands both versions.
+
+![schema change](results-k8s/schema-change.png)
+
+| Scenario | Sent | Stored | In the DLQ | Missing | Consumer restarts |
+|---|---:|---:|---:|---:|---:|
+| v1-only consumer, fail on a bad event | 44,995 | 14,930 | 0 | 30,065 stuck in Kafka | 3 |
+| v1-only consumer, dead-letter topic, then fix and redrive | 44,998 | 44,998 | 30,001 (all redriven) | 0 | 0 |
+| Consumer understands v1 and v2 | 44,998 | 44,998 | 0 | 0 | 0 |
+
+- **Fail-fast stalls the whole pipeline**, including the v1 events that were fine. The consumer sits in a crash loop
+  (Kubernetes restarts it with growing back-off) and the offset never moves past the first unreadable event. Nothing is
+  lost, because Kafka still has it, but nothing is stored either, and the lag grows until someone intervenes.
+- **A dead-letter topic turns an outage into a backlog.** The v1 events kept flowing; the 30,001 v2 events were parked
+  with headers saying why (`reason=schema_mismatch`, plus source topic, partition and offset). After rolling out a
+  consumer that understands v2, `python -m beautypipe.dlq redrive` republished them and all 44,998 events were stored
+  within 14 s (including the consumer rollout), with 0 rollup mismatches. Redriving is safe because the sink is
+  idempotent on `event_id`.
+- Understanding both versions (`beautypipe/schema.py`) is the real fix, and it needs no DLQ at all. This repo does not
+  use a schema registry; a registry with compatibility rules would stop an incompatible v2 before it is published,
+  which is the better first line of defense. This experiment shows what happens when that line fails.
+
+### 5. What happens when individual events are malformed?
+
+Same setup, no schema change. 0.2% to 0.5% of the events are damaged in one of six ways (truncated JSON, missing field,
+wrong type, rating out of range, unknown event type, unsupported schema version).
+
+![malformed events](results-k8s/malformed-events.png)
+
+| Scenario | Sent | Valid | Stored | In the DLQ | Missing | Consumer restarts |
+|---|---:|---:|---:|---:|---:|---:|
+| 0.2% bad, fail on a bad event | 44,995 | 44,883 | 1,800 | 0 | 43,195 stuck in Kafka | 4 |
+| 0.5% bad, log and skip | 44,999 | 44,762 | 44,762 | 0 | 237 silently dropped | 0 |
+| 0.5% bad, dead-letter topic | 44,998 | 44,761 | 44,761 | 237 | 0 | 0 |
+
+- **A single poison pill stops a partition for good**: with fail-fast the consumer stored only 1,800 of 44,883 valid
+  events before the first bad one blocked it, and was still crash-looping when the run ended.
+- **Skipping looks healthy and loses data.** Lag was 0, the dashboard was green, and 237 events were gone. The only
+  way to notice is to reconcile what was sent against what was stored, which is how this repo checks every run.
+- **The DLQ kept everything**: stored + dead-lettered equals sent, and the headers say why each one was rejected
+  (`invalid_json` 44, `unknown_event_type` 44, `out_of_range:rating` 41, `unsupported_version` 39,
+  `missing_field:product_id` 38, `wrong_type:product_id` 31).
+
+Limits of these two experiments: one consumer pod, one run each, a fail-fast consumer that restarts from its last
+commit (so it also re-reads the good events of the batch that contained the bad one), and a DLQ that is a single-partition
+topic with no retention policy or alerting. A production DLQ needs an alert on its size and an owner who reads it.
+The DLQ publish is flushed before offsets are committed, so a crash in between can produce duplicate dead letters;
+`beautypipe.dlq` deduplicates them by source partition and offset.
+
 ### Honest limitations and things that went wrong
 
 - Everything runs on one 4 vCPU VM in a single-node kind cluster, so the producer, Redpanda, Postgres and consumers
@@ -183,13 +247,85 @@ Requirements: Docker, [kind](https://kind.sigs.k8s.io), kubectl, helm.
 ```bash
 scripts/k8s-up.sh                          # kind cluster, Redpanda, Postgres, KEDA, catalog seed Job
 python -m beautypipe.k8s_bench --list      # the experiments
-python -m beautypipe.k8s_bench             # all of them, about 25 minutes -> results-k8s/
+python -m beautypipe.k8s_bench             # all of them, about 40 minutes -> results-k8s/
 python -m beautypipe.k8s_report            # charts + results-k8s/summary.md
 kind delete cluster --name beautypipe      # tear down
 ```
 
 The hard-crash experiment kills the container with `docker exec <kind node> crictl stop`, so the user running the
 benchmark needs Docker access (the harness calls `sudo -n docker`).
+
+## Storage format: Postgres vs Parquet + DuckDB
+
+The same 2,000,000 events (spread over 7 days, 5,000 products) written to both stores in consumer-sized batches
+of 500, then queried. Full tables and raw numbers: [`results-storage/`](results-storage/summary.md). Reproduce with
+`pip install -e ".[columnar]"` and `python -m beautypipe.storage_bench` (about 4 minutes, needs the Postgres from
+`docker compose` or the kind cluster).
+
+| | Postgres (batched, idempotent) | Parquet (one file per batch) |
+|---|---:|---:|
+| Mean ingest per 500-event batch | 17.3 ms | 2.1 ms |
+| p99 ingest per batch | 58.8 ms | 3.2 ms |
+| Rows after 40 batches were delivered twice | 2,000,000 | 2,040,000 raw, 2,000,000 after dedupe on read |
+| Disk | 485 MB (186 table + 299 indexes) | 78 MB as 4,087 small files, 55 MB compacted into 8 |
+
+Queries, median of 5 warm runs in milliseconds (all engines returned the same answers):
+
+| Query | Postgres | DuckDB, 4,087 small files | DuckDB, small files + dedupe | DuckDB, compacted |
+|---|---:|---:|---:|---:|
+| Top 20 products by review count and rating (scan + group by) | 90 | 285 | 613 | 11 |
+| Events per hour and type over 7 days | 964 | 465 | 798 | 234 |
+| Top 20 shades by distinct users | 2,132 | 364 | n/a | 88 |
+| Last 20 events of one product | 0.3 | 352 | 635 | 14 |
+| Review count and rating of one product | 0.1 | 198 | 620 | 2.9 |
+
+What this shows, and what it does not:
+
+- **Columnar wins scans, row store wins lookups.** Compacted Parquet answered the three analytical queries 4x to 24x
+  faster than Postgres, while a Postgres index (or the maintained `product_stats` rollup row) answers point questions in a
+  fraction of a millisecond, about 30x to 50x faster than DuckDB's best case here. Neither is "better"; they serve different
+  questions, which is the argument for writing the stream to both.
+- **Small files are the price of cheap ingest.** The Parquet sink is about 8x cheaper per batch because it
+  maintains no indexes and no rollup, but the files it leaves behind are slow to read: reading 4,087 files was 2x to 68x
+  slower than reading the same data compacted into 8 sorted files (26x for the top-products scan), and dedupe-on-read
+  added another 1.7x to 3x. Compaction (1.8 s here)
+  fixes it, and sorting by product made the point lookups possible at all.
+- **Delivery semantics differ.** The Postgres sink is exactly-once in effect (idempotent insert). The Parquet sink is
+  at-least-once: a redelivered batch becomes a second file, so readers must deduplicate on `event_id` or wait for
+  compaction. Neither sink is "wrong"; know which one you are running.
+- **The comparison is not apples to apples**: Postgres paid for two secondary indexes and the rollup update on every
+  batch and fsyncs on commit; the Parquet sink does a rename but no fsync, so its ingest number is optimistic about
+  durability on power loss. Postgres was reached over a Kubernetes NodePort (adds a round trip to every query),
+  limited to 2 CPUs with default settings (128 MB `shared_buffers`, no tuning); DuckDB ran in-process with 2 threads.
+  Compaction is a separate step that must be scheduled, and it does not delete the small files here.
+- Single machine, warm caches, one dataset size. Absolute numbers will differ on object storage, where small files
+  hurt even more. Use the ratios as an illustration of the trade-off, not as a benchmark of either product.
+
+## Real catalog data: Open Beauty Facts
+
+`CATALOG=obf python -m beautypipe.batchjob seed` loads a real catalog instead of the generated one:
+1,126 makeup products (lipsticks, foundations, mascaras, nail polish and so on) extracted from
+[Open Beauty Facts](https://world.openbeautyfacts.org), stored in the repo as `beautypipe/data/obf-makeup.jsonl.gz`
+(100 KB). Rebuild it from the current export with `python -m beautypipe.obf build`.
+
+The batch refresh normalizes it the way a real pipeline has to:
+
+- **Products**: brand names and product names are collapsed into a canonical key, so the same product entered with
+  different spelling or casing becomes one (1,126 records became 1,073 distinct products).
+- **Ingredients**: 575 products have an ingredient list. Splitting and normalizing it (`aqua`, `eau` and `water` become
+  `water`, `parfum` becomes `fragrance`, duplicates removed) gives 14,590 ingredient rows and 2,519 distinct
+  ingredients, stored in `product_ingredients` for ingredient-level questions.
+- **Shades**: only 99 of the 1,126 products (about 9%) have a shade that can be extracted from the name with a
+  heuristic (`Rouge Pur 03 Rose`), the rest get one `unspecified` shade. Treat shade results on this catalog as a demo
+  of the technique, not as clean data.
+
+Limits: the **events are still synthetic** (generated over this catalog), so this makes the catalog realistic, not the
+traffic. The Open Beauty Facts data is user-contributed and incomplete. All throughput and Kubernetes results in this
+README were measured with the synthetic 5,000-product catalog and were not re-run on this one.
+
+**Licence and attribution**: the extract is licensed under the Open Database License (ODbL) v1.0 and its contents under the
+Database Contents License; see [`beautypipe/data/ATTRIBUTION.md`](beautypipe/data/ATTRIBUTION.md). Keep the attribution
+if you redistribute it.
 
 ## Run it yourself
 
@@ -198,12 +334,13 @@ Requirements: Python 3.10+, and a Kafka-compatible broker and Postgres. With Doc
 ```bash
 docker compose up -d                       # Redpanda on :9092, Postgres on :5432
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"                  # ".[report]" if you only need the charts
+pip install -e ".[dev]"                  # ".[report]" if you only need the charts, ".[columnar]" for Parquet/DuckDB
 
 pytest                                     # unit + idempotency tests (needs Postgres)
 
 python -m beautypipe.bench                 # all scenarios, about 10 minutes -> results/
 python -m beautypipe.report                # results/overview.png + results/summary.md
+python -m beautypipe.storage_bench         # Postgres vs Parquet + DuckDB -> results-storage/
 ```
 
 Useful variations:
@@ -220,17 +357,31 @@ python -m beautypipe.batchjob loop --every 6
 ```
 
 Settings (environment variables): `KAFKA_BOOTSTRAP` (default `localhost:9092`), `DATABASE_URL` (default
-`postgresql://beauty:beauty@localhost:5432/beauty`), `NUM_PRODUCTS`, `SHADES_PER_PRODUCT`, `PARTITIONS`.
+`postgresql://beauty:beauty@localhost:5432/beauty`), `NUM_PRODUCTS`, `SHADES_PER_PRODUCT`, `PARTITIONS`, `CATALOG` (`synthetic` or `obf`), `PARQUET_DIR`.
+
+By hand, the new pieces look like this:
+
+```bash
+python -m beautypipe.producer --topic beauty.events --rate 1000 --duration 45 --v2-after 15 --bad-rate 0.005
+python -m beautypipe.consumer --topic beauty.events --decoder strict-v1 --on-bad-event dlq   # or fail / skip
+python -m beautypipe.dlq inspect --topic beauty.events.dlq
+python -m beautypipe.dlq redrive --topic beauty.events.dlq --target beauty.events
+python -m beautypipe.consumer --topic beauty.events --sink parquet                              # needs .[columnar]
+```
 
 ## Layout
 
 | Path | Purpose |
 |---|---|
 | `beautypipe/events.py` | Event model and deterministic, skewed event generator |
-| `beautypipe/catalog.py`, `normalize.py` | Messy catalog generator and shade-name normalization |
+| `beautypipe/catalog.py`, `normalize.py` | Messy catalog generator (or Open Beauty Facts), shade, brand and ingredient normalization |
+| `beautypipe/obf.py`, `beautypipe/data/` | Builds and stores the Open Beauty Facts makeup extract, with attribution |
+| `beautypipe/schema.py` | Event decoders: strict v1, and versioned (v1 + v2) with validation |
+| `beautypipe/dlq.py` | Inspect and redrive the dead-letter topic |
 | `beautypipe/producer.py` | Paced Kafka producer |
 | `beautypipe/sinks.py` | `blackhole`, `pg-naive`, `pg-batched` sinks |
-| `beautypipe/consumer.py` | Instrumented consumer (lag, throughput, latency) |
+| `beautypipe/parquet_sink.py`, `storage_bench.py` | Parquet sink, compaction, Postgres vs DuckDB benchmark |
+| `beautypipe/consumer.py` | Instrumented consumer (lag, throughput, latency, decoder and bad-event policy) |
 | `beautypipe/batchjob.py` | Catalog seeding and the periodic batch refresh |
 | `beautypipe/bench.py` | Runs scenarios, validates, runs the replay check |
 | `beautypipe/report.py` | Charts and markdown summary |
@@ -238,7 +389,7 @@ Settings (environment variables): `KAFKA_BOOTSTRAP` (default `localhost:9092`), 
 | `k8s/` | Manifests: Redpanda, Postgres, consumer Deployment, batch Job/CronJob, KEDA ScaledObject, kind config |
 | `scripts/k8s-up.sh` | Builds and loads images, creates the cluster, installs KEDA |
 | `Dockerfile` | Image used by the consumer, producer and batch pods |
-| `tests/` | Normalization, event determinism and sink idempotency tests |
+| `tests/` | Normalization, schema decoding, event determinism, sink idempotency and Parquet sink tests |
 
 ## Mapping to the talk outline
 
@@ -250,6 +401,9 @@ Settings (environment variables): `KAFKA_BOOTSTRAP` (default `localhost:9092`), 
 | Idempotency and replay | `sinks.py`, `bench.py` replay check, `tests/test_events_and_sinks.py` |
 | Storage and bottlenecks | `sinks.py` naive vs batched, results table |
 | Kubernetes: scaling, failure, backpressure | `k8s/`, `k8s_bench.py`, [Kubernetes experiments](#kubernetes-experiments) |
+| Schema evolution, bad records, dead letters | `schema.py`, `dlq.py`, [experiments 4 and 5](#4-what-happens-when-the-producer-changes-the-schema) |
+| Storage formats | `parquet_sink.py`, `storage_bench.py`, [Postgres vs Parquet + DuckDB](#storage-format-postgres-vs-parquet--duckdb) |
+| Real data | `obf.py`, [Open Beauty Facts](#real-catalog-data-open-beauty-facts) |
 
 ## License
 
